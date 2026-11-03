@@ -366,7 +366,7 @@ async function doAuth(f){
   const email=f.email.value.trim(), password=f.pass.value;
   let res;
   if(authMode==='entrar') res = await sb.auth.signInWithPassword({email,password});
-  else res = await sb.auth.signUp({email,password,options:{data:{role:regRole,display_name:f.name.value.trim(),district:f.district.value,city:f.city.value.trim(),whatsapp:f.whatsapp?.value.trim()||null}}});
+  else res = await sb.auth.signUp({email,password,options:{emailRedirectTo:location.origin+location.pathname,data:{role:regRole,display_name:f.name.value.trim(),district:f.district.value,city:f.city.value.trim(),whatsapp:f.whatsapp?.value.trim()||null}}});
   btn.disabled=false;
   if(res.error){ toast(res.error.message.includes('Invalid login')?'Email ou palavra-passe errados':res.error.message); return; }
   if(authMode==='registar' && !res.data.session){ $app().innerHTML=`<div class="empty"><div class="big">📧</div><h3>Confirma o teu email</h3><p>Enviámos um link para ${esc(email)}.</p></div>`; return; }
