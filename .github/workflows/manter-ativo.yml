@@ -1,0 +1,27 @@
+# Mantém o Supabase (plano grátis) acordado: o projeto pausa após ~7 dias sem pedidos.
+name: Manter Supabase ativo
+
+on:
+  schedule:
+    - cron: "17 4 */3 * *"   # a cada 3 dias, 04:17 UTC
+  workflow_dispatch:          # botão "Run workflow" para testar à mão
+
+permissions:
+  actions: write              # para o passo que impede o GitHub de desligar este agendamento
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Consulta real à base de dados
+        env:
+          URL: https://ylsspcbznrtcvdcfozov.supabase.co
+          KEY: sb_publishable_6kEr7KwxN0bCmI7SWaF95A_O_KvVelr   # chave pública (é a mesma do site)
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" "$URL/rest/v1/animals?select=id&limit=1" \
+            -H "apikey: $KEY" -H "Authorization: Bearer $KEY")
+          echo "Resposta: $code"
+          test "$code" = "200"
+
+      # O GitHub desliga agendamentos em repositórios sem atividade há 60 dias; isto reativa-o.
+      - uses: liskin/gh-workflow-keepalive@v1
