@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Ronron · Dá swipe. Dá um lar.</title>
+<meta name="description" content="Gatos de rua à procura de casa em Portugal. Dá swipe, encontra o teu gato e fala diretamente com quem cuida dele.">
+<meta name="theme-color" content="#E8673C">
+<meta property="og:title" content="Ronron · Dá swipe. Dá um lar.">
+<meta property="og:description" content="Gatos de rua à procura de casa em Portugal.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐾</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js"></script>
+<style>
+:root{
+  --bg:#FFF8F1; --card:#FFFFFF; --ink:#2B2220; --muted:#7A6A64; --line:#F0E2D6;
+  --accent:#E8673C; --accent-2:#F6A04D; --ok:#3BA272; --no:#D94A4A; --soft:#FCEBDD;
+  --shadow:0 10px 30px rgba(120,60,30,.14);
+}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#1C1614;--card:#2A211E;--ink:#F6ECE6;--muted:#BCA9A0;--line:#3B2F2A;--soft:#3A2A22;--shadow:0 10px 30px rgba(0,0,0,.4)}
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:Nunito,system-ui,sans-serif;font-size:16px}
+h1,h2,h3,.brand{font-family:Fredoka,Nunito,sans-serif;margin:0}
+a{color:var(--accent)}
+button{font:inherit;cursor:pointer}
+.wrap{max-width:520px;margin:0 auto;padding:0 16px calc(90px + env(safe-area-inset-bottom))}
+header{position:sticky;top:0;z-index:20;background:var(--bg);display:flex;align-items:center;justify-content:space-between;padding:12px 16px;max-width:520px;margin:0 auto}
+.brand{font-size:28px;font-weight:700;color:var(--accent);display:flex;align-items:center;gap:6px;cursor:pointer}
+.brand small{font-family:Nunito;font-size:12px;color:var(--muted);font-weight:600}
+nav.tabs{position:fixed;bottom:0;left:0;right:0;z-index:30;background:var(--card);border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:8px 0 calc(8px + env(safe-area-inset-bottom))}
+nav.tabs button{background:none;border:0;color:var(--muted);display:flex;flex-direction:column;align-items:center;font-size:12px;font-weight:700;gap:2px;min-width:64px}
+nav.tabs button span{font-size:22px}
+nav.tabs button.on{color:var(--accent)}
+.btn{border:0;border-radius:999px;padding:12px 20px;font-weight:700;background:var(--accent);color:#fff}
+.btn.ghost{background:var(--soft);color:var(--ink)}
+.btn.small{padding:8px 14px;font-size:14px}
+.btn.block{width:100%}
+.btn:disabled{opacity:.5}
+.chip{display:inline-block;padding:4px 10px;border-radius:999px;background:var(--soft);font-size:13px;font-weight:700;margin:2px 4px 2px 0}
+.chip.red{background:#FDE1DE;color:#A12B22}.chip.green{background:#DDF3E8;color:#1E6B47}
+@media (prefers-color-scheme: dark){.chip.red{background:#4A2522;color:#FFB4AB}.chip.green{background:#1D3B2E;color:#9EE2C0}}
+.filters{display:flex;gap:8px;overflow-x:auto;padding:4px 0 12px;scrollbar-width:none}
+.filters::-webkit-scrollbar{display:none}
+.filters select{width:auto;max-width:170px}
+.filters select,.filters label{flex:none;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:8px 12px;font:inherit;font-size:14px;font-weight:700;display:flex;align-items:center;gap:6px}
+.deck{position:relative;height:min(68vh,560px);margin-top:4px}
+.card{position:absolute;inset:0;background:var(--card);border-radius:24px;box-shadow:var(--shadow);overflow:hidden;touch-action:pan-y;user-select:none;will-change:transform}
+.card .photo{position:absolute;inset:0;background:#ddd center/cover no-repeat}
+.card video.photo{width:100%;height:100%;object-fit:cover}
+.card .bars{position:absolute;top:10px;left:12px;right:12px;display:flex;gap:4px;z-index:2}
+.card .bars i{flex:1;height:4px;border-radius:2px;background:rgba(255,255,255,.45)}
+.card .bars i.on{background:#fff}
+.card .info{position:absolute;left:0;right:0;bottom:0;padding:60px 18px 18px;background:linear-gradient(transparent,rgba(0,0,0,.78));color:#fff}
+.card .info h2{font-size:30px}
+.card .info .where{opacity:.9;font-weight:600;margin:2px 0 8px}
+.card .info .chip{background:rgba(255,255,255,.22);color:#fff}
+.card .info .chip.red{background:rgba(217,74,74,.85)}
+.card .more{position:absolute;right:14px;bottom:18px;width:40px;height:40px;border-radius:50%;border:0;background:rgba(255,255,255,.9);color:#2B2220;font-weight:800;font-size:18px;z-index:3}
+.stamp{position:absolute;top:36px;padding:6px 14px;border:4px solid;border-radius:10px;font-family:Fredoka;font-size:30px;font-weight:700;opacity:0;z-index:3;transform:rotate(-12deg)}
+.stamp.yes{left:18px;color:var(--ok);border-color:var(--ok)}
+.stamp.no{right:18px;color:var(--no);border-color:var(--no);transform:rotate(12deg)}
+.actions{display:flex;justify-content:center;gap:28px;margin:16px 0}
+.round{width:64px;height:64px;border-radius:50%;border:0;background:var(--card);box-shadow:var(--shadow);font-size:28px}
+.round.yes{color:var(--accent)}.round.no{color:var(--muted)}
+.empty{text-align:center;padding:48px 16px;color:var(--muted)}
+.empty .big{font-size:56px}
+.panel{background:var(--card);border-radius:18px;padding:18px;box-shadow:0 2px 10px rgba(120,60,30,.06);margin:12px 0}
+.list-item{display:flex;gap:12px;align-items:center;background:var(--card);border-radius:16px;padding:10px;margin:10px 0;box-shadow:0 2px 10px rgba(120,60,30,.06)}
+.list-item .thumb{width:72px;height:72px;border-radius:12px;background:#ddd center/cover;flex:none}
+.list-item .grow{flex:1;min-width:0}
+.list-item h3{font-size:18px}
+.muted{color:var(--muted)}
+form label{display:block;font-weight:700;font-size:14px;margin:12px 0 4px}
+input,select,textarea{width:100%;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:12px;padding:12px;font:inherit}
+textarea{min-height:80px;resize:vertical}
+.row{display:flex;gap:10px}.row>*{flex:1}
+.seg{display:flex;background:var(--soft);border-radius:999px;padding:4px;margin:8px 0}
+.seg button{flex:1;border:0;background:none;border-radius:999px;padding:10px;font-weight:700;color:var(--muted)}
+.seg button.on{background:var(--card);color:var(--accent);box-shadow:0 2px 6px rgba(0,0,0,.08)}
+.tri{display:flex;gap:6px}.tri button{flex:1;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:10px;padding:8px;font-weight:700;font-size:14px}
+.tri button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.photos-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+.photos-grid div{aspect-ratio:1;border-radius:12px;background:#ddd center/cover;position:relative}
+.photos-grid div button{position:absolute;top:4px;right:4px;border:0;border-radius:50%;width:26px;height:26px;background:rgba(0,0,0,.6);color:#fff}
+.toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:12px 18px;border-radius:999px;font-weight:700;z-index:99;max-width:90vw;text-align:center}
+.sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--card);width:100%;max-width:520px;max-height:90vh;overflow:auto;border-radius:24px 24px 0 0;padding:20px 18px calc(24px + env(safe-area-inset-bottom))}
+.gallery{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;margin:-4px -18px 12px;padding:0 18px}
+.gallery img,.gallery video{height:240px;border-radius:14px;scroll-snap-align:center;flex:none;max-width:85%;object-fit:cover}
+.facts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
+.facts div{background:var(--soft);border-radius:12px;padding:10px;font-size:14px}
+.facts b{display:block;font-size:12px;color:var(--muted)}
+.hero{text-align:center;padding:24px 8px}
+.hero .paw{font-size:64px}
+.hero h1{font-size:40px;color:var(--accent)}
+.hero p{font-size:18px;color:var(--muted);margin:8px 0 20px}
+.badge{background:var(--accent);color:#fff;border-radius:999px;font-size:11px;padding:1px 6px;margin-left:4px}
+.info-box{background:var(--soft);border-radius:14px;padding:12px 14px;font-size:14px;margin:10px 0}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand" onclick="go('feed')">🐾 Ronron <small>Dá swipe. Dá um lar.</small></div>
+  <button class="btn ghost small" id="hdrBtn" onclick="go('conta')">Entrar</button>
+</header>
+<main class="wrap" id="app"></main>
+<nav class="tabs" id="tabs">
+  <button data-v="feed" onclick="go('feed')"><span>🐱</span>Gatos</button>
+  <button data-v="favs" onclick="go('favs')"><span>❤️</span>Favoritos</button>
+  <button data-v="meus" onclick="go('meus')" id="tabMeus"><span>🏠</span>Os meus</button>
+  <button data-v="info" onclick="go('info')"><span>ℹ️</span>Ajuda</button>
+</nav>
+
+<script>
+const SB_URL = 'https://gfuxzzhrtzhzmalbyktm.supabase.co';
+const SB_KEY = 'sb_publishable_K0mE4LEQfCr3pjlUiD84Xw_Fgv_asAS';
+const sb = supabase.createClient(SB_URL, SB_KEY);
+const PHOTO = p => `${SB_URL}/storage/v1/object/public/animal-photos/${p}`;
+
+const DISTRITOS = {
+ 'Aveiro':[40.64,-8.65],'Beja':[38.02,-7.86],'Braga':[41.55,-8.42],'Bragança':[41.81,-6.76],
+ 'Castelo Branco':[39.82,-7.49],'Coimbra':[40.21,-8.43],'Évora':[38.57,-7.91],'Faro':[37.02,-7.93],
+ 'Guarda':[40.54,-7.27],'Leiria':[39.74,-8.81],'Lisboa':[38.72,-9.14],'Portalegre':[39.29,-7.43],
+ 'Porto':[41.15,-8.61],'Santarém':[39.24,-8.69],'Setúbal':[38.52,-8.89],'Viana do Castelo':[41.69,-8.83],
+ 'Vila Real':[41.30,-7.74],'Viseu':[40.66,-7.91],'Madeira':[32.65,-16.91],'Açores':[37.74,-25.67]
+};
+const distOpts = (sel='') => Object.keys(DISTRITOS).map(d=>`<option ${d===sel?'selected':''}>${d}</option>`).join('');
+function km(a,b){ if(!a||!b) return 9999; const R=6371,toR=x=>x*Math.PI/180;
+  const dLa=toR(b[0]-a[0]), dLo=toR(b[1]-a[1]);
+  const h=Math.sin(dLa/2)**2+Math.cos(toR(a[0]))*Math.cos(toR(b[0]))*Math.sin(dLo/2)**2; return 2*R*Math.asin(Math.sqrt(h)); }
+const esc = s => String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function idade(m){ if(m==null) return 'Idade ?'; if(m<12) return `${m} ${m==1?'mês':'meses'}`; const a=Math.round(m/12); return `${a} ${a==1?'ano':'anos'}`; }
+function toast(t){ const d=document.createElement('div'); d.className='toast'; d.textContent=t; document.body.appendChild(d); setTimeout(()=>d.remove(),2600); }
+const LS = {
+  get(k,d){ try{ return JSON.parse(localStorage.getItem('ronron.'+k)) ?? d }catch{ return d } },
+  set(k,v){ try{ localStorage.setItem('ronron.'+k, JSON.stringify(v)) }catch{} }
+};
+
+// ---------- estado ----------
+let me = null;          // {user, profile}
+let view = 'feed';
+let feed = [], feedIdx = 0;
+let filters = LS.get('filters', {district:'', felvNeg:false, young:false, cats:false});
+
+async function loadMe(){
+  const { data:{ session } } = await sb.auth.getSession();
+  if(!session){ me=null; return; }
+  const { data:profile } = await sb.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
+  me = { user: session.user, profile };
+  if(profile && !filters.district && profile.district){ filters.district = profile.district; }
+}
+sb.auth.onAuthStateChange((ev)=>{ if(ev==='SIGNED_IN'||ev==='SIGNED_OUT'){ loadMe().then(()=>{ chrome(); render(); }); } });
+
+function chrome(){
+  document.getElementById('hdrBtn').textContent = me ? 'Conta' : 'Entrar';
+  document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.toggle('on', b.dataset.v===view));
+}
+function go(v, arg){ view=v; window.scrollTo(0,0); chrome(); render(arg); }
+const $app = () => document.getElementById('app');
+
+async function render(arg){
+  const r = { feed:renderFeed, favs:renderFavs, meus:renderMeus, info:renderInfo, conta:renderConta, form:renderForm, admin:renderAdmin }[view];
+  if(r) await r(arg);
+}
+
+// ---------- FEED ----------
+async function fetchFeed(){
+  const { data, error } = await sb.from('animals')
+    .select('*, animal_photos(path,position,is_video)')
+    .eq('approved', true).neq('status','adotado').limit(500);
+  if(error){ toast('Erro a carregar gatos'); return []; }
+  let seen = new Set(LS.get('seen', []));
+  if(me){ const { data:sw } = await sb.from('swipes').select('animal_id'); (sw||[]).forEach(s=>seen.add(s.animal_id)); }
+  const origin = DISTRITOS[filters.district] || null;
+  return data.filter(a=>!seen.has(a.id))
+    .filter(a=>!filters.felvNeg || a.felv==='negativo')
+    .filter(a=>!filters.young || (a.age_months!=null && a.age_months<=24))
+    .filter(a=>!filters.cats || a.good_with_cats===true)
+    .map(a=>({...a, _km: km(origin, DISTRITOS[a.district]), animal_photos:(a.animal_photos||[]).sort((x,y)=>x.position-y.position)}))
+    .sort((a,b)=> origin ? a._km-b._km : new Date(b.created_at)-new Date(a.created_at));
+}
+
+async function renderFeed(){
+  $app().innerHTML = `
+  <div class="filters">
+    <select onchange="setF('district',this.value)"><option value="">📍 Todo o país</option>${distOpts(filters.district)}</select>
+    <label><input type="checkbox" style="width:auto" ${filters.felvNeg?'checked':''} onchange="setF('felvNeg',this.checked)"> Sem FeLV</label>
+    <label><input type="checkbox" style="width:auto" ${filters.young?'checked':''} onchange="setF('young',this.checked)"> Até 2 anos</label>
+    <label><input type="checkbox" style="width:auto" ${filters.cats?'checked':''} onchange="setF('cats',this.checked)"> Gosta de gatos</label>
+  </div>
+  <div class="deck" id="deck"><div class="empty"><div class="big">🐾</div>A procurar gatinhos…</div></div>
+  <div class="actions" id="acts" style="visibility:hidden">
+    <button class="round no" onclick="decide(false)" aria-label="Passar">✕</button>
+    <button class="round yes" onclick="decide(true)" aria-label="Gosto">♥</button>
+  </div>`;
+  feed = await fetchFeed(); feedIdx = 0; drawDeck();
+}
+function setF(k,v){ filters[k]=v; LS.set('filters',filters); renderFeed(); }
+
+function drawDeck(){
+  const deck = document.getElementById('deck'); if(!deck) return;
+  const acts = document.getElementById('acts');
+  if(feedIdx >= feed.length){
+    acts.style.visibility='hidden';
+    deck.innerHTML = `<div class="empty"><div class="big">😺</div><h3>Viste todos os gatos${filters.district?' por aqui':''}!</h3>
+      <p>Volta mais tarde ou alarga a procura.</p>
+      ${filters.district||filters.felvNeg||filters.young||filters.cats?`<button class="btn" onclick="filters={district:'',felvNeg:false,young:false,cats:false};LS.set('filters',filters);renderFeed()">Ver todo o país</button>`:''}
+      <p><button class="btn ghost small" onclick="LS.set('seen',[]);renderFeed()">Rever os que passei</button></p></div>`;
+    return;
+  }
+  acts.style.visibility='visible';
+  const cards = feed.slice(feedIdx, feedIdx+2).reverse();
+  deck.innerHTML = cards.map((a,i)=>cardHTML(a, i===cards.length-1)).join('');
+  const top = deck.querySelector('.card.top'); if(top) attachSwipe(top);
+}
+function media(p){ return p ? (p.is_video ? `<video class="photo" src="${PHOTO(esc(p.path))}" autoplay muted loop playsinline></video>` : `<div class="photo" style="background-image:url('${PHOTO(esc(p.path))}')"></div>`) : `<div class="photo" style="display:grid;place-items:center;font-size:80px;background:var(--soft)">🐱</div>`; }
+function cardHTML(a, isTop){
+  const ph = a.animal_photos;
+  const traits = (a.personality||'').split(',').map(s=>s.trim()).filter(Boolean).slice(0,3);
+  return `<div class="card ${isTop?'top':''}" data-id="${a.id}" data-i="0">
+    ${ph.length>1?`<div class="bars">${ph.map((_,i)=>`<i class="${i===0?'on':''}"></i>`).join('')}</div>`:''}
+    <div class="m">${media(ph[0])}</div>
+    <div class="stamp yes">GOSTO</div><div class="stamp no">PASSO</div>
+    <div class="info">
+      <h2>${esc(a.name)}, <span style="font-weight:500">${idade(a.age_months)}</span></h2>
+      <div class="where">📍 ${esc(a.city)}, ${esc(a.district)}${a._km<9999&&filters.district?` · ~${Math.round(a._km)} km`:''}</div>
+      ${a.felv==='positivo'?'<span class="chip red">FeLV+</span>':''}${a.sterilized?'<span class="chip">Esterilizado</span>':''}
+      ${traits.map(t=>`<span class="chip">${esc(t)}</span>`).join('')}
+    </div>
+    <button class="more" onclick="event.stopPropagation();openCat('${a.id}')">i</button>
+  </div>`;
+}
+function attachSwipe(el){
+  let sx=0, sy=0, dx=0, dragging=false, moved=false;
+  const yes=el.querySelector('.stamp.yes'), no=el.querySelector('.stamp.no');
+  el.addEventListener('pointerdown', e=>{ if(e.target.closest('.more')) return; dragging=true; moved=false; sx=e.clientX; sy=e.clientY; el.setPointerCapture(e.pointerId); el.style.transition='none'; });
+  el.addEventListener('pointermove', e=>{ if(!dragging) return; dx=e.clientX-sx; if(Math.abs(dx)>6) moved=true;
+    el.style.transform=`translateX(${dx}px) rotate(${dx/18}deg)`; yes.style.opacity=Math.max(0,dx/100); no.style.opacity=Math.max(0,-dx/100); });
+  const end = e=>{ if(!dragging) return; dragging=false; el.style.transition='transform .25s ease';
+    if(Math.abs(dx)>100){ decide(dx>0); }
+    else { el.style.transform=''; yes.style.opacity=0; no.style.opacity=0;
+      if(!moved){ // toque: muda de foto
+        const r=el.getBoundingClientRect(); nextPhoto(el, (e.clientX-r.left) > r.width/2 ? 1 : -1); } }
+    dx=0; };
+  el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+}
+function nextPhoto(el, dir){
+  const a = feed.find(x=>x.id===el.dataset.id); const n=a.animal_photos.length; if(n<2) return;
+  let i = (+el.dataset.i + dir + n) % n; el.dataset.i=i;
+  el.querySelector('.m').innerHTML = media(a.animal_photos[i]);
+  el.querySelectorAll('.bars i').forEach((b,j)=>b.classList.toggle('on', j===i));
+}
+async function decide(liked){
+  const a = feed[feedIdx]; if(!a) return;
+  const el = document.querySelector('.card.top');
+  if(el){ el.style.transition='transform .3s ease'; el.style.transform=`translateX(${liked?600:-600}px) rotate(${liked?25:-25}deg)`; }
+  const seen = LS.get('seen', []); if(!seen.includes(a.id)){ seen.push(a.id); LS.set('seen', seen.slice(-2000)); }
+  if(liked){ const f=LS.get('favs',[]); if(!f.includes(a.id)){ f.unshift(a.id); LS.set('favs',f); } }
+  if(me) sb.from('swipes').upsert({user_id:me.user.id, animal_id:a.id, liked}).then(()=>{});
+  if(liked && !LS.get('tipFav',false)){ LS.set('tipFav',true); toast('Guardado nos Favoritos ❤️'); }
+  setTimeout(()=>{ feedIdx++; drawDeck(); }, 220);
+}
+
+// ---------- DETALHE ----------
+async function getCat(id){
+  const { data } = await sb.from('animals').select('*, animal_photos(path,position,is_video), profiles(display_name)').eq('id',id).maybeSingle();
+  if(data) data.animal_photos = (data.animal_photos||[]).sort((x,y)=>x.position-y.position);
+  return data;
+}
+const yn = v => v===true?'Sim':v===false?'Não':'Não sei';
+async function openCat(id){
+  const a = await getCat(id); if(!a){ toast('Este gato já não está disponível'); return; }
+  const bg = document.createElement('div'); bg.className='sheet-bg'; bg.onclick=e=>{ if(e.target===bg) bg.remove(); };
+  bg.innerHTML = `<div class="sheet">
+    <div class="gallery">${a.animal_photos.map(p=>p.is_video?`<video src="${PHOTO(esc(p.path))}" controls playsinline></video>`:`<img src="${PHOTO(esc(p.path))}" alt="">`).join('') || '<div style="font-size:80px">🐱</div>'}</div>
+    <h2 style="font-size:28px">${esc(a.name)}</h2>
+    <div class="muted">📍 ${esc(a.city)}, ${esc(a.district)} · cuidado por ${esc(a.profiles?.display_name||'protetor')}</div>
+    ${a.status==='reservado'?'<p><span class="chip">⏳ Reservado</span></p>':''}
+    ${a.description?`<p>${esc(a.description)}</p>`:''}
+    <div class="facts">
+      <div><b>Idade</b>${idade(a.age_months)}</div><div><b>Sexo</b>${a.sex==='macho'?'Macho':a.sex==='femea'?'Fêmea':'?'}</div>
+      <div><b>Esterilizado</b>${yn(a.sterilized)}</div><div><b>Desparasitado</b>${yn(a.dewormed)}</div>
+      <div><b>FeLV</b>${a.felv==='positivo'?'Positivo':a.felv==='negativo'?'Negativo':'Não testado'}</div><div><b>Cor</b>${esc(a.color||'—')}</div>
+      <div><b>Com gatos</b>${yn(a.good_with_cats)}</div><div><b>Com cães</b>${yn(a.good_with_dogs)}</div>
+      <div><b>Com crianças</b>${yn(a.good_with_kids)}</div><div><b>Personalidade</b>${esc(a.personality||'—')}</div>
+    </div>
+    ${a.unique_trait?`<div class="info-box">✨ ${esc(a.unique_trait)}</div>`:''}
+    ${a.felv==='positivo'?`<div class="info-box">Este gato tem FeLV. Pode viver muitos anos feliz, mas deve viver dentro de casa e sozinho ou com outros gatos FeLV+. <a href="#" onclick="event.preventDefault();this.closest('.sheet-bg').remove();go('info')">Saber mais</a></div>`:''}
+    <div id="contact"><button class="btn block" onclick="revealContact('${a.id}','${a.owner_id}')">💬 Quero conhecer</button></div>
+    <p style="text-align:center"><button class="btn ghost small" onclick="reportCat('${a.id}')">🚩 Denunciar anúncio</button></p>
+  </div>`;
+  document.body.appendChild(bg);
+}
+async function revealContact(animalId, ownerId){
+  if(!me){ document.querySelector('.sheet-bg')?.remove(); toast('Cria uma conta grátis para ver o contacto'); go('conta'); return; }
+  const box = document.getElementById('contact');
+  const { data:c } = await sb.from('profile_contacts').select('whatsapp,email').eq('profile_id', ownerId).maybeSingle();
+  const a = await getCat(animalId);
+  const msg = encodeURIComponent(`Olá! Vi o(a) ${a?.name||'gato'} no Ronron e gostava de o(a) conhecer 🐾`);
+  const phone = (c?.whatsapp||'').replace(/\D/g,'');
+  const intl = phone ? (phone.length===9 ? '351'+phone : phone) : '';
+  box.innerHTML = `
+    <div class="info-box">⚠️ A adoção é sempre <b>gratuita</b>. Nunca pagues adiantado por transporte, vacinas ou "reserva".</div>
+    ${intl?`<a class="btn block" style="display:block;text-align:center;text-decoration:none;background:#25D366" href="https://wa.me/${intl}?text=${msg}" target="_blank" rel="noopener">WhatsApp</a>`:''}
+    ${c?.email?`<a class="btn ghost block" style="display:block;text-align:center;text-decoration:none;margin-top:8px" href="mailto:${esc(c.email)}?subject=${encodeURIComponent('Adoção pelo Ronron')}&body=${msg}">Email: ${esc(c.email)}</a>`:''}
+    ${!intl&&!c?.email?'<p class="muted">Este protetor ainda não deixou contacto.</p>':''}`;
+}
+async function reportCat(id){
+  if(!me){ toast('Entra na tua conta para denunciar'); return; }
+  const reason = prompt('O que se passa com este anúncio? (ex.: estão a vender, burla, fotos falsas)');
+  if(!reason) return;
+  const { error } = await sb.from('reports').insert({reporter_id:me.user.id, animal_id:id, reason});
+  toast(error?'Não deu para enviar':'Obrigado! Vamos ver isto.');
+}
+
+// ---------- FAVORITOS ----------
+async function renderFavs(){
+  let ids = LS.get('favs', []);
+  if(me){ const { data } = await sb.from('swipes').select('animal_id').eq('liked',true).order('created_at',{ascending:false});
+    ids = [...new Set([...(data||[]).map(d=>d.animal_id), ...ids])]; }
+  if(!ids.length){ $app().innerHTML = `<div class="empty"><div class="big">❤️</div><h3>Ainda sem favoritos</h3><p>Dá swipe para a direita nos gatos de que gostas.</p><button class="btn" onclick="go('feed')">Ver gatos</button></div>`; return; }
+  const { data } = await sb.from('animals').select('id,name,city,district,status,age_months,animal_photos(path,position,is_video)').in('id', ids);
+  const by = Object.fromEntries((data||[]).map(a=>[a.id,a]));
+  $app().innerHTML = `<h2 style="margin:8px 0">Os teus favoritos</h2>` + ids.filter(i=>by[i]).map(i=>{ const a=by[i];
+    const p=(a.animal_photos||[]).filter(x=>!x.is_video).sort((x,y)=>x.position-y.position)[0];
+    return `<div class="list-item" onclick="openCat('${a.id}')"><div class="thumb" style="background-image:url('${p?PHOTO(esc(p.path)):''}')"></div>
+      <div class="grow"><h3>${esc(a.name)}</h3><div class="muted">${idade(a.age_months)} · ${esc(a.city)}</div>
+      ${a.status==='adotado'?'<span class="chip green">🎉 Já foi adotado</span>':a.status==='reservado'?'<span class="chip">⏳ Reservado</span>':''}</div>
+      <button class="btn small" onclick="event.stopPropagation();openCat('${a.id}')">Ver</button></div>`; }).join('');
+}
+
+// ---------- CONTA / LOGIN ----------
+let authMode = 'entrar', regRole = 'adotante';
+function renderConta(){
+  if(me){
+    const p = me.profile||{};
+    $app().innerHTML = `<div class="panel"><h2>Olá, ${esc(p.display_name||'')} 👋</h2>
+      <p class="muted">${p.role==='protetor'?'Conta de protetor — podes publicar gatos.':'Conta de adotante.'} ${p.is_admin?'<span class="chip">Admin</span>':''}</p>
+      ${p.role!=='protetor'?`<button class="btn ghost block" onclick="becomeProtetor()">Também cuido de gatos de rua → ser protetor</button>`:''}
+      ${p.is_admin?`<p><button class="btn block" onclick="go('admin')">Painel de admin</button></p>`:''}
+      <p><button class="btn ghost block" onclick="sb.auth.signOut()">Sair</button></p></div>`;
+    return;
+  }
+  $app().innerHTML = `<div class="panel">
+    <div class="seg"><button class="${authMode==='entrar'?'on':''}" onclick="authMode='entrar';renderConta()">Entrar</button><button class="${authMode==='registar'?'on':''}" onclick="authMode='registar';renderConta()">Criar conta</button></div>
+    <form onsubmit="event.preventDefault();doAuth(this)">
+      ${authMode==='registar'?`
+        <label>Eu sou…</label>
+        <div class="seg"><button type="button" class="${regRole==='adotante'?'on':''}" onclick="regRole='adotante';renderConta()">Quero adotar</button><button type="button" class="${regRole==='protetor'?'on':''}" onclick="regRole='protetor';renderConta()">Cuido de gatos de rua</button></div>
+        <label>Nome</label><input name="name" required maxlength="40">
+        <div class="row"><div><label>Distrito</label><select name="district" required><option value="">—</option>${distOpts()}</select></div>
+        <div><label>Cidade</label><input name="city" required maxlength="40"></div></div>
+        ${regRole==='protetor'?`<label>WhatsApp (os adotantes falam contigo diretamente)</label><input name="whatsapp" inputmode="tel" placeholder="912 345 678">`:''}
+      `:''}
+      <label>Email</label><input name="email" type="email" required autocomplete="email">
+      <label>Palavra-passe</label><input name="pass" type="password" required minlength="6" autocomplete="${authMode==='entrar'?'current-password':'new-password'}">
+      <p><button class="btn block">${authMode==='entrar'?'Entrar':'Criar conta grátis'}</button></p>
+      ${authMode==='registar'?'<p class="muted" style="font-size:13px">O teu contacto só é mostrado a pessoas com conta. Ao criar conta aceitas as <a href="#" onclick="event.preventDefault();go(\'info\')">regras do Ronron</a>.</p>':''}
+    </form></div>`;
+}
+async function doAuth(f){
+  const btn=f.querySelector('button.btn.block'); btn.disabled=true;
+  const email=f.email.value.trim(), password=f.pass.value;
+  let res;
+  if(authMode==='entrar') res = await sb.auth.signInWithPassword({email,password});
+  else res = await sb.auth.signUp({email,password,options:{data:{role:regRole,display_name:f.name.value.trim(),district:f.district.value,city:f.city.value.trim(),whatsapp:f.whatsapp?.value.trim()||null}}});
+  btn.disabled=false;
+  if(res.error){ toast(res.error.message.includes('Invalid login')?'Email ou palavra-passe errados':res.error.message); return; }
+  if(authMode==='registar' && !res.data.session){ $app().innerHTML=`<div class="empty"><div class="big">📧</div><h3>Confirma o teu email</h3><p>Enviámos um link para ${esc(email)}.</p></div>`; return; }
+  await loadMe(); toast('Bem-vindo ao Ronron 🐾'); go(me?.profile?.role==='protetor'?'meus':'feed');
+}
+async function becomeProtetor(){
+  const w = prompt('O teu WhatsApp (para os adotantes falarem contigo):'); if(w===null) return;
+  await sb.from('profiles').update({role:'protetor'}).eq('id',me.user.id);
+  await sb.from('profile_contacts').upsert({profile_id:me.user.id, whatsapp:w, email:me.user.email});
+  await loadMe(); go('meus');
+}
+
+// ---------- OS MEUS GATOS (protetor) ----------
+async function renderMeus(){
+  if(!me){ $app().innerHTML = `<div class="empty"><div class="big">🏠</div><h3>Cuidas de gatos de rua?</h3><p>Cria uma conta de protetor e publica-os. Quem quiser adotar fala diretamente contigo.</p><button class="btn" onclick="authMode='registar';regRole='protetor';go('conta')">Criar conta de protetor</button></div>`; return; }
+  if(me.profile?.role!=='protetor'){ $app().innerHTML = `<div class="empty"><div class="big">🏠</div><h3>Esta zona é para protetores</h3><p>Se cuidas de gatos de rua, passa a protetor e publica-os.</p><button class="btn" onclick="becomeProtetor()">Ser protetor</button></div>`; return; }
+  const { data } = await sb.from('animals').select('*, animal_photos(path,position,is_video)').eq('owner_id', me.user.id).order('created_at',{ascending:false});
+  $app().innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin:8px 0"><h2>Os meus gatos</h2><button class="btn small" onclick="go('form')">+ Novo gato</button></div>
+    ${(data||[]).length?'':'<div class="empty"><div class="big">📸</div><p>Ainda não publicaste nenhum gato.</p></div>'}
+    ${(data||[]).map(a=>{ const p=(a.animal_photos||[]).filter(x=>!x.is_video).sort((x,y)=>x.position-y.position)[0];
+      return `<div class="list-item"><div class="thumb" style="background-image:url('${p?PHOTO(esc(p.path)):''}')"></div>
+      <div class="grow"><h3>${esc(a.name)}</h3>
+        ${a.approved?'':'<span class="chip">🕐 À espera de aprovação</span>'}
+        <select style="margin-top:6px;padding:6px" onchange="setStatus('${a.id}',this.value)">
+          <option value="disponivel" ${a.status==='disponivel'?'selected':''}>Disponível</option>
+          <option value="reservado" ${a.status==='reservado'?'selected':''}>Reservado</option>
+          <option value="adotado" ${a.status==='adotado'?'selected':''}>🎉 Adotado</option></select></div>
+      <button class="btn ghost small" onclick="go('form','${a.id}')">Editar</button></div>`; }).join('')}`;
+}
+async function setStatus(id, s){ const { error } = await sb.from('animals').update({status:s}).eq('id',id); toast(error?'Erro':(s==='adotado'?'🎉 Parabéns!':'Atualizado')); }
+
+let formPhotos = []; // {path?, file?, url, is_video}
+async function renderForm(id){
+  if(!me||me.profile?.role!=='protetor'){ go('meus'); return; }
+  let a = { district: me.profile.district||'', city: me.profile.city||'', felv:'desconhecido', sex:'desconhecido' };
+  formPhotos = [];
+  if(id){ a = await getCat(id); formPhotos = a.animal_photos.map(p=>({path:p.path,url:PHOTO(p.path),is_video:p.is_video})); }
+  const tri = (n,v)=>`<div class="tri" data-n="${n}">${[['true','Sim'],['false','Não'],['','Não sei']].map(([k,l])=>`<button type="button" class="${String(v??'')===k?'on':''}" data-v="${k}" onclick="this.parentNode.querySelectorAll('button').forEach(b=>b.classList.remove('on'));this.classList.add('on')">${l}</button>`).join('')}</div>`;
+  $app().innerHTML = `<h2 style="margin:8px 0">${id?'Editar':'Novo'} gato</h2>
+  <form class="panel" onsubmit="event.preventDefault();saveCat(this,'${id||''}')">
+    <label>Fotos e vídeo (até 6 — a 1.ª é a principal)</label>
+    <div class="photos-grid" id="pg"></div>
+    <input type="file" accept="image/*,video/*" multiple onchange="addFiles(this.files);this.value=''" style="margin-top:8px">
+    <div class="info-box">📸 Dica: cara à altura dos olhos dele, luz natural, e uma foto com uma mão a fazer festas.</div>
+    <label>Nome</label><input name="name" required maxlength="30" value="${esc(a.name||'')}">
+    <div class="row"><div><label>Sexo</label><select name="sex"><option value="desconhecido">?</option><option value="macho" ${a.sex==='macho'?'selected':''}>Macho</option><option value="femea" ${a.sex==='femea'?'selected':''}>Fêmea</option></select></div>
+    <div><label>Idade (meses)</label><input name="age" type="number" min="0" max="300" value="${a.age_months??''}" placeholder="ex.: 18"></div></div>
+    <label>Cor / padrão</label><input name="color" maxlength="40" value="${esc(a.color||'')}" placeholder="ex.: tigrado cinzento">
+    <label>Personalidade (3 palavras, separadas por vírgulas)</label><input name="personality" maxlength="60" value="${esc(a.personality||'')}" placeholder="mimoso, brincalhão, curioso">
+    <label>FeLV</label><select name="felv"><option value="desconhecido">Não testado</option><option value="negativo" ${a.felv==='negativo'?'selected':''}>Negativo</option><option value="positivo" ${a.felv==='positivo'?'selected':''}>Positivo</option></select>
+    <label>Esterilizado?</label>${tri('sterilized',a.sterilized)}
+    <label>Desparasitado?</label>${tri('dewormed',a.dewormed)}
+    <label>Dá-se bem com gatos?</label>${tri('good_with_cats',a.good_with_cats)}
+    <label>Dá-se bem com cães?</label>${tri('good_with_dogs',a.good_with_dogs)}
+    <label>Dá-se bem com crianças?</label>${tri('good_with_kids',a.good_with_kids)}
+    <label>Algo único sobre ele</label><input name="unique" maxlength="100" value="${esc(a.unique_trait||'')}" placeholder="ex.: segue-te até à porta">
+    <label>Descrição</label><textarea name="desc" maxlength="600">${esc(a.description||'')}</textarea>
+    <div class="row"><div><label>Distrito</label><select name="district" required><option value="">—</option>${distOpts(a.district)}</select></div>
+    <div><label>Cidade / vila</label><input name="city" required maxlength="40" value="${esc(a.city||'')}"></div></div>
+    <p class="muted" style="font-size:13px">Não ponhas a morada exata. Ao publicar confirmas que a adoção é gratuita.</p>
+    <p><button class="btn block" id="saveBtn">${id?'Guardar':'Publicar'}</button></p>
+    ${id?`<p><button type="button" class="btn ghost block" onclick="delCat('${id}')">Apagar anúncio</button></p>`:''}
+  </form>`;
+  drawPhotos();
+}
+function drawPhotos(){
+  const g=document.getElementById('pg'); if(!g) return;
+  g.innerHTML = formPhotos.map((p,i)=>`<div style="${p.is_video?'background:#333;display:grid;place-items:center;color:#fff;font-size:30px':`background-image:url('${p.url}')`}">${p.is_video?'🎬':''}<button type="button" onclick="formPhotos.splice(${i},1);drawPhotos()">✕</button></div>`).join('');
+}
+function addFiles(files){
+  for(const f of files){ if(formPhotos.length>=6){ toast('Máximo 6'); break; }
+    const v=f.type.startsWith('video'); if(v && f.size>20e6){ toast('Vídeo grande demais (máx. 20 MB)'); continue; }
+    formPhotos.push({file:f, url:URL.createObjectURL(f), is_video:v}); }
+  drawPhotos();
+}
+async function shrink(file){
+  try{ const bmp = await createImageBitmap(file); const s=Math.min(1,1600/Math.max(bmp.width,bmp.height));
+    const c=document.createElement('canvas'); c.width=Math.round(bmp.width*s); c.height=Math.round(bmp.height*s);
+    c.getContext('2d').drawImage(bmp,0,0,c.width,c.height);
+    const b = await new Promise(r=>c.toBlob(r,'image/webp',.82)); return b ? {blob:b, ext:'webp', type:'image/webp'} : null;
+  }catch{ return null; }
+}
+async function saveCat(f, id){
+  if(!formPhotos.length){ toast('Põe pelo menos uma foto'); return; }
+  const btn=document.getElementById('saveBtn'); btn.disabled=true; btn.textContent='A guardar…';
+  const triVal = n => { const b=f.querySelector(`.tri[data-n="${n}"] button.on`); const v=b?.dataset.v; return v==='true'?true:v==='false'?false:null; };
+  const d = f.district.value, coords = DISTRITOS[d];
+  const row = { name:f.name.value.trim(), sex:f.sex.value, age_months:f.age.value===''?null:+f.age.value, color:f.color.value.trim()||null,
+    personality:f.personality.value.trim()||null, felv:f.felv.value, sterilized:triVal('sterilized'), dewormed:triVal('dewormed'),
+    good_with_cats:triVal('good_with_cats'), good_with_dogs:triVal('good_with_dogs'), good_with_kids:triVal('good_with_kids'),
+    unique_trait:f.unique.value.trim()||null, description:f.desc.value.trim()||null, district:d, city:f.city.value.trim(),
+    lat:coords?.[0], lng:coords?.[1], species:'gato' };
+  let animalId = id;
+  if(id){ const { error } = await sb.from('animals').update(row).eq('id',id); if(error){ fail(error); return; } }
+  else { const { data, error } = await sb.from('animals').insert({...row, owner_id:me.user.id}).select('id').single(); if(error){ fail(error); return; } animalId=data.id; }
+  // fotos: carrega as novas, reescreve a ordem
+  const rows=[];
+  for(let i=0;i<formPhotos.length;i++){ const p=formPhotos[i];
+    if(!p.path){ btn.textContent=`A enviar foto ${i+1}/${formPhotos.length}…`;
+      let blob=p.file, ext=(p.file.name.split('.').pop()||'jpg').toLowerCase(), type=p.file.type;
+      if(!p.is_video){ const s=await shrink(p.file); if(s){ blob=s.blob; ext=s.ext; type=s.type; } }
+      const path = `${me.user.id}/${animalId}/${crypto.randomUUID()}.${ext}`;
+      const { error } = await sb.storage.from('animal-photos').upload(path, blob, {contentType:type});
+      if(error){ fail(error); return; } p.path=path; }
+    rows.push({animal_id:animalId, path:p.path, position:i, is_video:p.is_video}); }
+  await sb.from('animal_photos').delete().eq('animal_id', animalId);
+  const { error:pe } = await sb.from('animal_photos').insert(rows); if(pe){ fail(pe); return; }
+  toast(id?'Guardado':'Publicado! Fica visível depois de aprovado 🐾'); go('meus');
+  function fail(e){ btn.disabled=false; btn.textContent=id?'Guardar':'Publicar'; toast('Erro: '+e.message); }
+}
+async function delCat(id){ if(!confirm('Apagar este anúncio?')) return; await sb.from('animals').delete().eq('id',id); toast('Apagado'); go('meus'); }
+
+// ---------- ADMIN ----------
+async function renderAdmin(){
+  if(!me?.profile?.is_admin){ go('feed'); return; }
+  const { data:pend } = await sb.from('animals').select('*, animal_photos(path,position,is_video), profiles(display_name)').eq('approved',false).order('created_at');
+  const { data:reps } = await sb.from('reports').select('*, animals(name)').eq('resolved',false).order('created_at',{ascending:false});
+  $app().innerHTML = `<h2 style="margin:8px 0">Por aprovar (${(pend||[]).length})</h2>
+    ${(pend||[]).map(a=>{ const p=(a.animal_photos||[]).filter(x=>!x.is_video)[0];
+      return `<div class="list-item"><div class="thumb" style="background-image:url('${p?PHOTO(esc(p.path)):''}')" onclick="openCat('${a.id}')"></div>
+      <div class="grow"><h3>${esc(a.name)}</h3><div class="muted">${esc(a.city)} · por ${esc(a.profiles?.display_name)}</div></div>
+      <button class="btn small" onclick="approve('${a.id}',true)">✓</button><button class="btn ghost small" onclick="approve('${a.id}',false)">✕</button></div>`; }).join('') || '<p class="muted">Nada pendente 🎉</p>'}
+    <h2 style="margin:20px 0 8px">Denúncias (${(reps||[]).length})</h2>
+    ${(reps||[]).map(r=>`<div class="panel"><b>${esc(r.animals?.name||'(apagado)')}</b><p>${esc(r.reason)}</p>
+      ${r.animal_id?`<button class="btn ghost small" onclick="openCat('${r.animal_id}')">Ver</button> <button class="btn ghost small" onclick="approve('${r.animal_id}',false)">Apagar anúncio</button>`:''}
+      <button class="btn small" onclick="resolveRep('${r.id}')">Resolvida</button></div>`).join('') || '<p class="muted">Sem denúncias.</p>'}`;
+}
+async function approve(id, ok){
+  const { error } = ok ? await sb.from('animals').update({approved:true}).eq('id',id) : await sb.from('animals').delete().eq('id',id);
+  toast(error?'Erro: '+error.message:(ok?'Aprovado':'Removido')); renderAdmin();
+}
+async function resolveRep(id){ await sb.from('reports').update({resolved:true}).eq('id',id); renderAdmin(); }
+
+// ---------- AJUDA ----------
+function renderInfo(){
+  $app().innerHTML = `
+  <div class="hero"><div class="paw">🐾</div><h1>Ronron</h1><p>Gatos de rua à procura de casa.<br>Dá swipe. Dá um lar.</p></div>
+  <div class="panel"><h3>Como funciona</h3>
+    <p>❤️ <b>Swipe para a direita</b> nos gatos de que gostas — ficam nos Favoritos.<br>
+    💬 <b>Quero conhecer</b> mostra o contacto de quem cuida do gato. Falam diretamente, sem intermediários.<br>
+    🏠 <b>Cuidas de gatos de rua?</b> Cria uma conta de protetor e publica-os.</p></div>
+  <div class="panel"><h3>Regras</h3>
+    <p>✅ A adoção é <b>sempre gratuita</b>. Vender animais é proibido e leva à remoção da conta.<br>
+    🚫 Nunca pagues adiantado por transporte, vacinas ou "reserva" — é a burla mais comum.<br>
+    🤝 Conhece o gato pessoalmente antes de adotar.<br>
+    🚩 Viste algo estranho? Usa "Denunciar anúncio".<br>
+    🔒 O contacto dos protetores só é visível a quem tem conta. Não publiques moradas exatas.</p></div>
+  <div class="panel"><h3>O que é FeLV?</h3>
+    <p>É o vírus da leucemia felina. <b>Só passa entre gatos</b> (não passa para pessoas nem cães), sobretudo por saliva, lambidelas e lutas.</p>
+    <p>Um gato FeLV+ pode viver vários anos feliz. Precisa de:<br>• viver <b>dentro de casa</b>;<br>• ser o único gato, ou viver só com outros FeLV+;<br>• idas ao veterinário mais regulares.</p>
+    <p class="muted">Estes gatos são os que mais esperam por casa. Se puderes, dá-lhes uma oportunidade 🧡</p></div>
+  <p class="muted" style="text-align:center;font-size:13px">O Ronron só põe pessoas em contacto. A responsabilidade da adoção é de quem adota e de quem dá.</p>`;
+}
+
+// ---------- arranque ----------
+(async()=>{
+  await loadMe();
+  if(!LS.get('welcomed',false)){ LS.set('welcomed',true); view='info'; }
+  chrome(); render();
+})();
+</script>
+</body>
+</html>
