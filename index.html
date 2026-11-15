@@ -99,6 +99,14 @@ textarea{min-height:80px;resize:vertical}
 .hero p{font-size:18px;color:var(--muted);margin:8px 0 20px}
 .badge{background:var(--accent);color:#fff;border-radius:999px;font-size:11px;padding:1px 6px;margin-left:4px}
 .info-box{background:var(--soft);border-radius:14px;padding:12px 14px;font-size:14px;margin:10px 0}
+.aviso{position:sticky;top:0;z-index:60;background:#7A2E12;color:#fff;padding:10px 16px;font-weight:700;font-size:14px;text-align:center}
+.aviso .btn{margin-left:8px;background:#fff;color:#7A2E12}
+.dlg{border:0;border-radius:20px;padding:20px;max-width:min(420px,92vw);width:100%;background:var(--card);color:var(--ink);box-shadow:var(--shadow)}
+.dlg::backdrop{background:rgba(0,0,0,.5)}
+.dlg h3{margin-bottom:6px}
+.check{display:flex!important;gap:10px;align-items:flex-start;font-weight:600!important}
+.check input{width:auto;margin-top:3px}
+:focus-visible{outline:3px solid var(--accent-2);outline-offset:2px}
 </style>
 </head>
 <body>
@@ -115,9 +123,68 @@ textarea{min-height:80px;resize:vertical}
 </nav>
 
 <script>
-const SB_URL = 'https://ylsspcbznrtcvdcfozov.supabase.co';
-const SB_KEY = 'sb_publishable_6kEr7KwxN0bCmI7SWaF95A_O_KvVelr';
+// ?staging no endereço usa o projeto de testes
+const STAGING = new URLSearchParams(location.search).has('staging');
+const SB_URL = STAGING ? 'https://ickartykrhaamjjtiyqy.supabase.co' : 'https://ylsspcbznrtcvdcfozov.supabase.co';
+const SB_KEY = STAGING ? 'sb_publishable_jlEBNlIFmkjOsIzg-1Qwgw_sVO9xqfL' : 'sb_publishable_6kEr7KwxN0bCmI7SWaF95A_O_KvVelr';
+// Cloudflare Turnstile: chave pública do widget (vazia = CAPTCHA desligado)
+const TURNSTILE_SITE_KEY = '';
 const sb = supabase.createClient(SB_URL, SB_KEY);
+
+// ---------- erros em português ----------
+const ERROS = [
+  [/load failed|failed to fetch|networkerror|network request failed|fetch|timeout|timed out|52[0-9]|54[0-9]|503|502/i,
+   'Não foi possível ligar ao servidor. O serviço pode estar em manutenção: tenta daqui a uns minutos.'],
+  [/invalid login credentials/i, 'Email ou palavra-passe errados.'],
+  [/user already registered|already been registered/i, 'Já existe uma conta com este email. Usa "Entrar".'],
+  [/password should be at least|weak password|password is too weak/i, 'A palavra-passe tem de ter pelo menos 8 caracteres, com letras e números.'],
+  [/rate limit|too many requests|429/i, 'Demasiadas tentativas seguidas. Espera uns minutos e tenta outra vez.'],
+  [/captcha/i, 'A verificação anti-robô falhou. Recarrega a página e tenta outra vez.'],
+  [/email not confirmed/i, 'Ainda não confirmaste o teu email.'],
+  [/signups? not allowed|signup.*disabled/i, 'Os registos estão temporariamente fechados.'],
+  [/invalid email|unable to validate email/i, 'Este email não parece válido.'],
+  [/mime type|not supported/i, 'Formato de ficheiro não suportado. Usa JPG, PNG ou vídeo MP4.'],
+  [/payload too large|exceeded the maximum allowed size|too large/i, 'Ficheiro demasiado grande (máximo 10 MB).'],
+  [/row-level security|permission denied|sem permiss/i, 'Não tens permissão para fazer isto.'],
+  [/violates check constraint/i, 'Algum campo tem um valor inválido ou demasiado longo.'],
+  [/duplicate key.*reports/i, 'Já denunciaste este anúncio. Obrigado.'],
+];
+function erroPT(e){
+  const m = String(e?.message || e || '');
+  if(['P0001','P0002','22023'].includes(e?.code)) return m;  // mensagens da nossa base de dados já vêm em português
+  for(const [re, txt] of ERROS) if(re.test(m)) return txt;
+  return 'Algo correu mal. Tenta outra vez daqui a pouco.';
+}
+window.addEventListener('unhandledrejection', ev => { toast(erroPT(ev.reason)); });
+async function verificarServico(){
+  try{
+    const r = await fetch(`${SB_URL}/auth/v1/health`, {headers:{apikey:SB_KEY}, signal:AbortSignal.timeout(8000)});
+    if(r.ok){ document.getElementById('aviso')?.remove(); return true; }
+  }catch{}
+  if(!document.getElementById('aviso')){
+    const d=document.createElement('div'); d.id='aviso'; d.className='aviso'; d.setAttribute('role','alert');
+    d.innerHTML='Serviço em manutenção: algumas funções podem falhar. Tenta daqui a uns minutos. <button class="btn small" onclick="verificarServico().then(ok=>ok&&render())">Tentar de novo</button>';
+    document.body.prepend(d);
+  }
+  return false;
+}
+
+// ---------- diálogos (substituem prompt/confirm) ----------
+function dialogo({titulo, texto='', campo=null, ok='Confirmar', cancelar='Cancelar', perigo=false}){
+  return new Promise(resolve=>{
+    const d=document.createElement('dialog'); d.className='dlg';
+    d.innerHTML=`<form method="dialog">
+      <h3>${esc(titulo)}</h3>${texto?`<p class="muted">${esc(texto)}</p>`:''}
+      ${campo?`<${campo.multilinha?'textarea':'input'} name="v" ${campo.tipo?`type="${campo.tipo}"`:''} maxlength="${campo.max||200}" placeholder="${esc(campo.placeholder||'')}" ${campo.obrigatorio?'required':''}>${campo.multilinha?'</textarea>':''}`:''}
+      <div class="row" style="margin-top:14px"><button type="button" class="btn ghost" value="0">${esc(cancelar)}</button><button class="btn" value="1" ${perigo?'style="background:var(--no)"':''}>${esc(ok)}</button></div></form>`;
+    document.body.appendChild(d);
+    const f=d.querySelector('form'), v=f.querySelector('[name=v]');
+    d.querySelector('button[type=button]').onclick=()=>d.close('0');
+    f.onsubmit=e=>{ e.preventDefault(); if(v && campo.obrigatorio && !v.value.trim()) return; d.close('1'); };
+    d.addEventListener('close',()=>{ const sim=d.returnValue==='1'; resolve(campo ? (sim ? v.value.trim() : null) : sim); d.remove(); });
+    d.showModal(); (v||d.querySelector('button.btn:not(.ghost)')).focus();
+  });
+}
 const PHOTO = p => `${SB_URL}/storage/v1/object/public/animal-photos/${p}`;
 
 const DISTRITOS = {
@@ -148,11 +215,17 @@ let filters = LS.get('filters', {district:'', felvNeg:false, young:false, cats:f
 async function loadMe(){
   const { data:{ session } } = await sb.auth.getSession();
   if(!session){ me=null; return; }
-  const { data:profile } = await sb.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
-  me = { user: session.user, profile };
-  if(profile && !filters.district && profile.district){ filters.district = profile.district; }
+  const { data, error } = await sb.rpc('meu_perfil');
+  if(error){ toast(erroPT(error)); }
+  me = { user: session.user, profile: data?.[0] || null };
+  const pr = me.profile; if(pr && !filters.district && pr.district){ filters.district = pr.district; }
 }
-sb.auth.onAuthStateChange((ev)=>{ if(ev==='SIGNED_IN'||ev==='SIGNED_OUT'){ loadMe().then(()=>{ chrome(); render(); }); } });
+// só volta a desenhar quando muda mesmo de utilizador (o SIGNED_IN repete-se ao voltar ao separador e apagava formulários a meio)
+let ultimoUid;
+sb.auth.onAuthStateChange((ev, sessao)=>{
+  const uid = sessao?.user?.id || null;
+  if((ev==='SIGNED_IN'||ev==='SIGNED_OUT') && uid !== ultimoUid){ ultimoUid = uid; setTimeout(()=>loadMe().then(()=>{ chrome(); if(view!=='form') render(); }), 0); }
+});
 
 function chrome(){
   document.getElementById('hdrBtn').textContent = me ? 'Conta' : 'Entrar';
@@ -171,7 +244,7 @@ async function fetchFeed(){
   const { data, error } = await sb.from('animals')
     .select('*, animal_photos(path,position,is_video)')
     .eq('approved', true).neq('status','adotado').limit(500);
-  if(error){ toast('Erro a carregar gatos'); return []; }
+  if(error){ toast(erroPT(error)); return []; }
   let seen = new Set(LS.get('seen', []));
   if(me){ const { data:sw } = await sb.from('swipes').select('animal_id'); (sw||[]).forEach(s=>seen.add(s.animal_id)); }
   const origin = DISTRITOS[filters.district] || null;
@@ -266,7 +339,7 @@ async function decide(liked){
 
 // ---------- DETALHE ----------
 async function getCat(id){
-  const { data } = await sb.from('animals').select('*, animal_photos(path,position,is_video), profiles(display_name)').eq('id',id).maybeSingle();
+  const { data } = await sb.from('animals').select('*, animal_photos(path,position,is_video), profiles!animals_owner_id_fkey(display_name)').eq('id',id).maybeSingle();
   if(data) data.animal_photos = (data.animal_photos||[]).sort((x,y)=>x.position-y.position);
   return data;
 }
@@ -297,7 +370,9 @@ async function openCat(id){
 async function revealContact(animalId, ownerId){
   if(!me){ document.querySelector('.sheet-bg')?.remove(); toast('Cria uma conta grátis para ver o contacto'); go('conta'); return; }
   const box = document.getElementById('contact');
-  const { data:c } = await sb.from('profile_contacts').select('whatsapp,email').eq('profile_id', ownerId).maybeSingle();
+  const { data, error } = await sb.rpc('revelar_contacto', { p_animal: animalId });
+  if(error){ toast(erroPT(error)); return; }
+  const c = data?.[0];
   const a = await getCat(animalId);
   const msg = encodeURIComponent(`Olá! Vi o(a) ${a?.name||'gato'} no Ronron e gostava de o(a) conhecer 🐾`);
   const phone = (c?.whatsapp||'').replace(/\D/g,'');
@@ -310,10 +385,12 @@ async function revealContact(animalId, ownerId){
 }
 async function reportCat(id){
   if(!me){ toast('Entra na tua conta para denunciar'); return; }
-  const reason = prompt('O que se passa com este anúncio? (ex.: estão a vender, burla, fotos falsas)');
+  const reason = await dialogo({titulo:'Denunciar anúncio', texto:'O que se passa? (ex.: estão a vender, burla, fotos falsas)',
+    campo:{multilinha:true, max:500, obrigatorio:true}, ok:'Enviar denúncia'});
   if(!reason) return;
+  if(reason.length<3){ toast('Escreve um pouco mais sobre o problema.'); return; }
   const { error } = await sb.from('reports').insert({reporter_id:me.user.id, animal_id:id, reason});
-  toast(error?'Não deu para enviar':'Obrigado! Vamos ver isto.');
+  toast(error?erroPT(error):'Obrigado! Vamos ver isto.');
 }
 
 // ---------- FAVORITOS ----------
@@ -356,26 +433,51 @@ function renderConta(){
         ${regRole==='protetor'?`<label>WhatsApp (os adotantes falam contigo diretamente)</label><input name="whatsapp" inputmode="tel" placeholder="912 345 678">`:''}
       `:''}
       <label>Email</label><input name="email" type="email" required autocomplete="email">
-      <label>Palavra-passe</label><input name="pass" type="password" required minlength="6" autocomplete="${authMode==='entrar'?'current-password':'new-password'}">
+      <label>Palavra-passe</label><input name="pass" type="password" required minlength="${authMode==='entrar'?6:8}" autocomplete="${authMode==='entrar'?'current-password':'new-password'}">
+      ${authMode==='registar'?`<p class="muted" style="font-size:13px;margin:4px 0 0">Pelo menos 8 caracteres.</p>
+        <label class="check"><input type="checkbox" name="adulto" required><span>Tenho 18 anos ou mais e aceito as <a href="#" onclick="event.preventDefault();go('info')">regras do Ronron</a>.</span></label>`:''}
+      ${TURNSTILE_SITE_KEY?'<div id="captcha" style="margin-top:12px"></div>':''}
       <p><button class="btn block">${authMode==='entrar'?'Entrar':'Criar conta grátis'}</button></p>
-      ${authMode==='registar'?'<p class="muted" style="font-size:13px">O teu contacto só é mostrado a pessoas com conta. Ao criar conta aceitas as <a href="#" onclick="event.preventDefault();go(\'info\')">regras do Ronron</a>.</p>':''}
+      ${authMode==='registar'?'<p class="muted" style="font-size:13px">O teu contacto só é mostrado a pessoas com conta, quando pedem para conhecer um gato teu.</p>':''}
     </form></div>`;
+  montarCaptcha();
 }
+// ---------- CAPTCHA (Cloudflare Turnstile) ----------
+let captchaToken = null, captchaId = null;
+function montarCaptcha(){
+  if(!TURNSTILE_SITE_KEY || !document.getElementById('captcha')) return;
+  const go = () => { captchaToken=null; captchaId = turnstile.render('#captcha', { sitekey:TURNSTILE_SITE_KEY, language:'pt-PT',
+    callback:t=>captchaToken=t, 'expired-callback':()=>captchaToken=null }); };
+  if(window.turnstile) return go();
+  if(!document.getElementById('ts-js')){ const s=document.createElement('script'); s.id='ts-js';
+    s.src='https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'; s.async=true; s.onload=go; document.head.appendChild(s); }
+}
+function resetCaptcha(){ if(window.turnstile && captchaId!=null){ turnstile.reset(captchaId); captchaToken=null; } }
 async function doAuth(f){
-  const btn=f.querySelector('button.btn.block'); btn.disabled=true;
+  if(TURNSTILE_SITE_KEY && !captchaToken){ toast('Confirma primeiro a verificação anti-robô.'); return; }
+  const btn=f.querySelector('button.btn.block'); btn.disabled=true; const txt=btn.textContent; btn.textContent='Um momento…';
   const email=f.email.value.trim(), password=f.pass.value;
+  const extra = captchaToken ? {captchaToken} : {};
   let res;
-  if(authMode==='entrar') res = await sb.auth.signInWithPassword({email,password});
-  else res = await sb.auth.signUp({email,password,options:{emailRedirectTo:location.origin+location.pathname,data:{role:regRole,display_name:f.name.value.trim(),district:f.district.value,city:f.city.value.trim(),whatsapp:f.whatsapp?.value.trim()||null}}});
-  btn.disabled=false;
-  if(res.error){ toast(res.error.message.includes('Invalid login')?'Email ou palavra-passe errados':res.error.message); return; }
+  try{
+    if(authMode==='entrar') res = await sb.auth.signInWithPassword({email,password,options:extra});
+    else res = await sb.auth.signUp({email,password,options:{...extra,emailRedirectTo:location.origin+location.pathname,data:{role:regRole,termos:true,display_name:f.name.value.trim(),district:f.district.value,city:f.city.value.trim(),whatsapp:f.whatsapp?.value.trim()||null}}});
+  }catch(e){ res = {error:e}; }
+  btn.disabled=false; btn.textContent=txt; resetCaptcha();
+  if(res.error){ toast(erroPT(res.error)); verificarServico(); return; }
   if(authMode==='registar' && !res.data.session){ $app().innerHTML=`<div class="empty"><div class="big">📧</div><h3>Confirma o teu email</h3><p>Enviámos um link para ${esc(email)}.</p></div>`; return; }
+  ultimoUid = res.data?.user?.id ?? ultimoUid;
   await loadMe(); toast('Bem-vindo ao Ronron 🐾'); go(me?.profile?.role==='protetor'?'meus':'feed');
 }
 async function becomeProtetor(){
-  const w = prompt('O teu WhatsApp (para os adotantes falarem contigo):'); if(w===null) return;
-  await sb.from('profiles').update({role:'protetor'}).eq('id',me.user.id);
-  await sb.from('profile_contacts').upsert({profile_id:me.user.id, whatsapp:w, email:me.user.email});
+  const w = await dialogo({titulo:'Passar a protetor', texto:'O teu WhatsApp, para os adotantes falarem contigo. Só é mostrado a quem tem conta e pede para conhecer um gato teu.',
+    campo:{tipo:'tel', max:20, placeholder:'912 345 678', obrigatorio:true}, ok:'Passar a protetor'});
+  if(w===null) return;
+  const tel = w.replace(/[^0-9+ ]/g,'');
+  if(!/^\+?[0-9 ]{9,20}$/.test(tel)){ toast('Número de WhatsApp inválido.'); return; }
+  let r = await sb.from('profiles').update({role:'protetor'}).eq('id',me.user.id);
+  if(!r.error) r = await sb.from('profile_contacts').upsert({profile_id:me.user.id, whatsapp:tel, email:me.user.email});
+  if(r.error){ toast(erroPT(r.error)); return; }
   await loadMe(); go('meus');
 }
 
@@ -396,7 +498,7 @@ async function renderMeus(){
           <option value="adotado" ${a.status==='adotado'?'selected':''}>🎉 Adotado</option></select></div>
       <button class="btn ghost small" onclick="go('form','${a.id}')">Editar</button></div>`; }).join('')}`;
 }
-async function setStatus(id, s){ const { error } = await sb.from('animals').update({status:s}).eq('id',id); toast(error?'Erro':(s==='adotado'?'🎉 Parabéns!':'Atualizado')); }
+async function setStatus(id, s){ const { error } = await sb.from('animals').update({status:s}).eq('id',id); toast(error?erroPT(error):(s==='adotado'?'🎉 Parabéns!':'Atualizado')); }
 
 let formPhotos = []; // {path?, file?, url, is_video}
 async function renderForm(id){
@@ -467,22 +569,35 @@ async function saveCat(f, id){
   for(let i=0;i<formPhotos.length;i++){ const p=formPhotos[i];
     if(!p.path){ btn.textContent=`A enviar foto ${i+1}/${formPhotos.length}…`;
       let blob=p.file, ext=(p.file.name.split('.').pop()||'jpg').toLowerCase(), type=p.file.type;
-      if(!p.is_video){ const s=await shrink(p.file); if(s){ blob=s.blob; ext=s.ext; type=s.type; } }
+      if(!p.is_video){ const s=await shrink(p.file);
+        if(s){ blob=s.blob; ext=s.ext; type=s.type; }
+        else if(/hei[cf]/i.test(p.file.type+ext)){ fail({message:'As fotos HEIC do iPhone ainda não são suportadas neste browser. No iPhone, escolhe "Mais compatível" em Definições > Câmara > Formatos, ou envia uma captura de ecrã da foto.'}); return; } }
+      if(p.is_video && p.file.size>10e6){ fail({message:'Vídeo demasiado grande (máximo 10 MB). Grava um vídeo mais curto.'}); return; }
       const path = `${me.user.id}/${animalId}/${crypto.randomUUID()}.${ext}`;
       const { error } = await sb.storage.from('animal-photos').upload(path, blob, {contentType:type});
       if(error){ fail(error); return; } p.path=path; }
     rows.push({animal_id:animalId, path:p.path, position:i, is_video:p.is_video}); }
-  await sb.from('animal_photos').delete().eq('animal_id', animalId);
-  const { error:pe } = await sb.from('animal_photos').insert(rows); if(pe){ fail(pe); return; }
+  const { data:orfaos, error:pe } = await sb.rpc('guardar_fotos', { p_animal: animalId, p_fotos: rows.map(r=>({path:r.path, is_video:r.is_video})) });
+  if(pe){ fail(pe); return; }
+  if(orfaos?.length) await sb.storage.from('animal-photos').remove(orfaos);
   toast(id?'Guardado':'Publicado! Fica visível depois de aprovado 🐾'); go('meus');
-  function fail(e){ btn.disabled=false; btn.textContent=id?'Guardar':'Publicar'; toast('Erro: '+e.message); }
+  function fail(e){ btn.disabled=false; btn.textContent=id?'Guardar':'Publicar'; toast(e.code||!e.message?erroPT(e):(/[ãçéêíóú]/i.test(e.message)?e.message:erroPT(e))); }
 }
-async function delCat(id){ if(!confirm('Apagar este anúncio?')) return; await sb.from('animals').delete().eq('id',id); toast('Apagado'); go('meus'); }
+async function apagarAnimal(id){
+  const { data:fotos } = await sb.from('animal_photos').select('path').eq('animal_id', id);
+  const { error } = await sb.from('animals').delete().eq('id',id);
+  if(error) return error;
+  if(fotos?.length) await sb.storage.from('animal-photos').remove(fotos.map(f=>f.path));
+  return null;
+}
+async function delCat(id){
+  if(!await dialogo({titulo:'Apagar este anúncio?', texto:'As fotos e vídeos também são apagados. Não dá para desfazer.', ok:'Apagar', perigo:true})) return;
+  const error = await apagarAnimal(id); toast(error?erroPT(error):'Apagado'); if(!error) go('meus'); }
 
 // ---------- ADMIN ----------
 async function renderAdmin(){
   if(!me?.profile?.is_admin){ go('feed'); return; }
-  const { data:pend } = await sb.from('animals').select('*, animal_photos(path,position,is_video), profiles(display_name)').eq('approved',false).order('created_at');
+  const { data:pend } = await sb.from('animals').select('*, animal_photos(path,position,is_video), profiles!animals_owner_id_fkey(display_name)').eq('approved',false).order('created_at');
   const { data:reps } = await sb.from('reports').select('*, animals(name)').eq('resolved',false).order('created_at',{ascending:false});
   $app().innerHTML = `<h2 style="margin:8px 0">Por aprovar (${(pend||[]).length})</h2>
     ${(pend||[]).map(a=>{ const p=(a.animal_photos||[]).filter(x=>!x.is_video)[0];
@@ -495,10 +610,11 @@ async function renderAdmin(){
       <button class="btn small" onclick="resolveRep('${r.id}')">Resolvida</button></div>`).join('') || '<p class="muted">Sem denúncias.</p>'}`;
 }
 async function approve(id, ok){
-  const { error } = ok ? await sb.from('animals').update({approved:true}).eq('id',id) : await sb.from('animals').delete().eq('id',id);
-  toast(error?'Erro: '+error.message:(ok?'Aprovado':'Removido')); renderAdmin();
+  if(!ok && !await dialogo({titulo:'Remover este anúncio?', texto:'O anúncio, as fotos e os vídeos são apagados.', ok:'Remover', perigo:true})) return;
+  const error = ok ? (await sb.from('animals').update({approved:true}).eq('id',id)).error : await apagarAnimal(id);
+  toast(error?erroPT(error):(ok?'Aprovado':'Removido')); renderAdmin();
 }
-async function resolveRep(id){ await sb.from('reports').update({resolved:true}).eq('id',id); renderAdmin(); }
+async function resolveRep(id){ const { error } = await sb.from('reports').update({resolved:true}).eq('id',id); if(error) toast(erroPT(error)); renderAdmin(); }
 
 // ---------- AJUDA ----------
 function renderInfo(){
@@ -523,7 +639,9 @@ function renderInfo(){
 
 // ---------- arranque ----------
 (async()=>{
-  await loadMe();
+  if(STAGING){ const b=document.createElement('div'); b.className='aviso'; b.style.background='#1F3FA8'; b.textContent='Ambiente de testes (Staging)'; document.body.prepend(b); }
+  verificarServico();
+  try{ await loadMe(); }catch(e){ toast(erroPT(e)); }
   if(!LS.get('welcomed',false)){ LS.set('welcomed',true); view='info'; }
   chrome(); render();
 })();
