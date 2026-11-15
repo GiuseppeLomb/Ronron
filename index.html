@@ -128,7 +128,7 @@ const STAGING = new URLSearchParams(location.search).has('staging');
 const SB_URL = STAGING ? 'https://ickartykrhaamjjtiyqy.supabase.co' : 'https://ylsspcbznrtcvdcfozov.supabase.co';
 const SB_KEY = STAGING ? 'sb_publishable_jlEBNlIFmkjOsIzg-1Qwgw_sVO9xqfL' : 'sb_publishable_6kEr7KwxN0bCmI7SWaF95A_O_KvVelr';
 // Cloudflare Turnstile: chave pública do widget (vazia = CAPTCHA desligado)
-const TURNSTILE_SITE_KEY = '';
+const TURNSTILE_SITE_KEY = '0x4AAAAAAGCcxLDz5Gd-ix3G';
 const sb = supabase.createClient(SB_URL, SB_KEY);
 
 // ---------- erros em português ----------
