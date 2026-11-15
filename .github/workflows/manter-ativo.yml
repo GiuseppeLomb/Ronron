@@ -1,9 +1,12 @@
-# Mantém o Supabase (plano grátis) acordado: o projeto pausa após ~7 dias sem pedidos.
+# Mantém os projetos Supabase (plano grátis) acordados.
+# O plano grátis pausa projetos com pouca atividade; a documentação pede alguns pedidos por dia.
+# Corre de 6 em 6 horas e testa REST, Auth e Storage em produção e no Staging.
+# Se algum falhar, o workflow falha (vermelho) e o GitHub envia email a quem mantém este agendamento.
 name: Manter Supabase ativo
 
 on:
   schedule:
-    - cron: "17 4 */3 * *"   # a cada 3 dias, 04:17 UTC
+    - cron: "23 */6 * * *"   # 00:23, 06:23, 12:23, 18:23 UTC
   workflow_dispatch:          # botão "Run workflow" para testar à mão
 
 permissions:
@@ -12,16 +15,50 @@ permissions:
 jobs:
   ping:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - nome: Produção
+            url: https://ylsspcbznrtcvdcfozov.supabase.co
+            key: sb_publishable_6kEr7KwxN0bCmI7SWaF95A_O_KvVelr   # chave pública (é a mesma do site)
+          - nome: Staging
+            url: https://ickartykrhaamjjtiyqy.supabase.co
+            key: sb_publishable_jlEBNlIFmkjOsIzg-1Qwgw_sVO9xqfL   # chave pública
+    name: ${{ matrix.nome }}
     steps:
-      - name: Consulta real à base de dados
+      - name: REST, Auth e Storage
         env:
-          URL: https://ylsspcbznrtcvdcfozov.supabase.co
-          KEY: sb_publishable_6kEr7KwxN0bCmI7SWaF95A_O_KvVelr   # chave pública (é a mesma do site)
+          URL: ${{ matrix.url }}
+          KEY: ${{ matrix.key }}
         run: |
-          code=$(curl -s -o /dev/null -w "%{http_code}" "$URL/rest/v1/animals?select=id&limit=1" \
-            -H "apikey: $KEY" -H "Authorization: Bearer $KEY")
-          echo "Resposta: $code"
-          test "$code" = "200"
+          set -u
+          falhas=0
+          testar () {  # nome, método, caminho, [corpo]
+            local corpo="${4:-}"
+            local code
+            code=$(curl -s -o /tmp/resp -w "%{http_code}" --max-time 30 \
+              --retry 3 --retry-delay 20 --retry-all-errors \
+              -X "$2" "$URL/$3" -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
+              -H "content-type: application/json" ${corpo:+-d "$corpo"}) || code="sem ligação"
+            if [ "$code" = "200" ]; then
+              echo "OK    $1 ($code)"
+            else
+              echo "::error title=Supabase ${{ matrix.nome }}::$1 respondeu $code"
+              head -c 300 /tmp/resp 2>/dev/null; echo
+              falhas=$((falhas+1))
+            fi
+          }
+          testar "Base de dados (REST)" GET  "rest/v1/animals?select=id&limit=1"
+          testar "Autenticação (Auth)"  GET  "auth/v1/health"
+          testar "Ficheiros (Storage)"  POST "storage/v1/object/list/animal-photos" '{"prefix":"","limit":1}'
+          if [ "$falhas" -gt 0 ]; then
+            echo "::error::O projeto ${{ matrix.nome }} pode estar pausado. Reativa em supabase.com/dashboard."
+            exit 1
+          fi
 
+  manter-agendamento:
+    runs-on: ubuntu-latest
+    steps:
       # O GitHub desliga agendamentos em repositórios sem atividade há 60 dias; isto reativa-o.
       - uses: liskin/gh-workflow-keepalive@v1
