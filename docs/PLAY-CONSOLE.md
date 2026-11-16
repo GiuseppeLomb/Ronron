@@ -134,8 +134,8 @@ Não é app de notícias · não é governamental · sem funcionalidades de saú
 
 **Não recolhemos:** localização exata, contactos, mensagens, ficheiros, calendário, áudio, dados financeiros, saúde, histórico de navegação, apps instaladas, ID de publicidade, registos de falhas ou dados de diagnóstico.
 
-### Permissões da app (para referência)
-Internet, estado da rede, vibração, notificações (aviso "o teu gato foi aprovado"), câmara (só quando se escolhe tirar uma foto para publicar), credenciais (login Google). O alarme exato foi retirado. Nenhuma exige declaração especial na Play Console.
+### Permissões da app (verificadas no APK 1.0.0)
+Internet e estado da rede · vibração · notificações (aviso "o teu gato foi aprovado") · arranque do telemóvel e wake lock (da biblioteca de notificações) · credenciais e biometria (vêm da biblioteca de login da Google, Credential Manager; a app não usa biometria). Sem câmara: a fotografia é tirada pela app de câmara do sistema. Sem localização, sem contactos, sem ID de publicidade, sem alarme exato, sem SDK do Facebook. Nenhuma exige declaração especial na Play Console.
 
 ---
 
