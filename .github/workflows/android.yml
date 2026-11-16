@@ -1,5 +1,8 @@
-# Compila a app Android (Capacitor) e publica um APK de teste para instalar no telemóvel.
-# Ambiente de testes (Staging) por omissão; produção só à mão, quando aprovado.
+# Compila a app Android (Capacitor).
+# - staging (por omissão, a cada push): APK de teste publicado como pré-lançamento no GitHub.
+# - production (só à mão: Actions > App Android > Run workflow > ambiente = production): .aab assinado para a Google Play
+#   e APK de lançamento, guardados como ficheiros privados da execução (não ficam públicos).
+# versionCode: testes = número da execução; lançamento = MAJOR*1000000 + MINOR*10000 + PATCH*100 + revisão (1.0.0 -> 1000000).
 name: App Android
 
 on:
@@ -11,6 +14,9 @@ on:
       ambiente:
         description: 'staging ou production'
         default: 'staging'
+      revisao:
+        description: 'Só lançamento: revisão da mesma versão (0-99), para voltar a enviar à Play Store'
+        default: '0'
 
 permissions:
   contents: write
@@ -49,17 +55,42 @@ jobs:
         env:
           RONRON_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
-          export RONRON_VERSION_CODE="$GITHUB_RUN_NUMBER"
-          export RONRON_VERSION_NAME="$(node -p "require('../package.json').version")"
+          V="$(node -p "require('../package.json').version")"
+          if [ "$AMBIENTE" = "production" ]; then
+            IFS=. read -r MA MI PA <<< "$V"
+            export RONRON_VERSION_CODE=$(( MA*1000000 + MI*10000 + PA*100 + ${{ github.event.inputs.revisao || 0 }} ))
+          else
+            export RONRON_VERSION_CODE="$GITHUB_RUN_NUMBER"
+          fi
+          export RONRON_VERSION_NAME="$V"
+          echo "versionName $V · versionCode $RONRON_VERSION_CODE · $AMBIENTE"
+          echo "RONRON_VERSION_CODE=$RONRON_VERSION_CODE" >> "$GITHUB_ENV"
           ./gradlew --no-daemon assembleRelease bundleRelease
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs app/build/outputs/apk/release/app-release.apk | grep -i "SHA-1"
-      - name: Guardar o .aab (para a Google Play, 30 dias)
+      - name: Lançamento — preparar ficheiros para a Google Play
+        if: env.AMBIENTE == 'production'
+        run: |
+          V=$(node -p "require('./package.json').version")
+          mkdir -p ../lancamento
+          cp android/app/build/outputs/bundle/release/app-release.aab "../lancamento/ronron-${V}-${RONRON_VERSION_CODE}.aab"
+          cp android/app/build/outputs/apk/release/app-release.apk "../lancamento/ronron-${V}-${RONRON_VERSION_CODE}-verificar.apk"
+          ls -la ../lancamento
+      - name: Lançamento — guardar o .aab (Google Play)
+        if: env.AMBIENTE == 'production'
         uses: actions/upload-artifact@v4
         with:
-          name: ronron-aab-${{ env.AMBIENTE }}-${{ github.run_number }}
-          path: app/android/app/build/outputs/bundle/release/app-release.aab
-          retention-days: 30
-      - name: Publicar o APK para instalar no telemóvel
+          name: ronron-play-store-aab
+          path: lancamento/*.aab
+          retention-days: 90
+      - name: Lançamento — guardar o APK (só para verificar no telemóvel)
+        if: env.AMBIENTE == 'production'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ronron-apk-lancamento
+          path: lancamento/*.apk
+          retention-days: 90
+      - name: Testes — publicar o APK para instalar no telemóvel
+        if: env.AMBIENTE != 'production'
         env: { GH_TOKEN: '${{ github.token }}' }
         run: |
           V=$(node -p "require('./package.json').version")

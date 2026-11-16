@@ -1,6 +1,7 @@
 // Feed (swipe), filtros, ficha e "Quero conhecer"
 import { animate } from 'motion';
 import { $, $$, go, wait, esc, toast, vibrar, erroPT, dialogo, partilhar, burst, confetti, cascade, reduce } from './ui.js';
+import { ronronar, toque, descansar } from './som.js';
 import { icon } from './icons.js';
 import { makeRonron, RR } from './ronron.js';
 import * as api from './api.js';
@@ -51,7 +52,7 @@ async function carregar(){
   makeRonron($('#skel-rr'), { size: 150, pose: 'gente', base: 'gente' });
   $('#side').innerHTML = '';
   try{
-    const lista = await api.feed(S.filtros);
+    const lista = await api.feed(S.filtros); S.total = lista.length;
     LS.set('cache-feed', lista.slice(0, 30));
     if(S.me) (await api.gostos()).forEach(s => S.vistos.add(s.animal_id));
     S.feed = lista.filter(a => !S.vistos.has(a.id)); S.idx = 0; S.trilho = [];
@@ -65,7 +66,7 @@ async function carregar(){
 function erro(e){
   $('#cardbox').innerHTML = ''; const em = $('#empty'); em.hidden = false;
   em.innerHTML = `<div class="state-rr"><span id="erro-rr"></span><h3>Enrolei-me um bocadinho</h3><span>${esc(erroPT(e))}</span><button class="chip" id="retry">Tentar de novo</button></div>`;
-  const r = makeRonron($('#erro-rr'), { size: 160, pose: 'pensar', base: 'novelo' }); r.react('erro');
+  const r = makeRonron($('#erro-rr'), { size: 160, pose: 'pensar', base: 'novelo' }); r.react('erro'); toque();
   $('#retry').onclick = carregar;
 }
 
@@ -97,9 +98,14 @@ function vazio(){
     hdr.say('Tira um filtro e procuro outra vez.', 2400);
     $$('.fchip', em).forEach(c => c.onclick = () => { S.filtros[c.dataset.k] = c.dataset.k === 'district' ? '' : false; guardarFiltros(); barra(); carregar(); });
     $('#limpar').onclick = () => { Object.keys(S.filtros).forEach(k => S.filtros[k] = k === 'district' ? '' : false); guardarFiltros(); barra(); carregar(); };
+  } else if(S.total === 0){
+    // ainda não há nenhum gato publicado (início do Ronron)
+    em.innerHTML = `<div class="state-rr"><span id="vz-rr"></span><h3>Os primeiros gatos estão a chegar</h3><span>Ainda não há gatos à espera de casa. Volta em breve. Cuidas de gatos de rua? Publica o primeiro.</span><button class="chip" id="pub1">Publicar um gato</button></div>`;
+    const r = makeRonron($('#vz-rr'), { size: 170, pose: 'gente', base: 'gente' }); r.react('abrir');
+    $('#pub1').onclick = () => location.hash = S.me?.perfil?.role === 'protetor' ? 'publicar' : 'conta';
   } else {
     em.innerHTML = `<div class="state-rr"><span id="vz-rr"></span><h3>Por hoje é tudo</h3><span>Vou dormir uma sesta. Amanhã há mais amigos para conhecer.</span><button class="chip" id="rever">Ver outra vez os que passei</button></div>`;
-    const r = makeRonron($('#vz-rr'), { size: 170, pose: 'gente', base: 'dormir' }); r.react('vazio');
+    const r = makeRonron($('#vz-rr'), { size: 170, pose: 'gente', base: 'dormir' }); r.react('vazio'); setTimeout(() => { if(!$('#empty').hidden) descansar(); }, 1600);
     hdr.say('Por hoje é tudo. Vou dormir uma sesta.', 2600, 'vazio');
     $('#rever').onclick = () => { S.vistos = new Set(); LS.set('vistos', []); carregar(); };
   }
@@ -137,21 +143,21 @@ export async function decide(liked, x0 = 0, y0 = 0){
   const a = cur(); S.trilho.push(S.idx); const next = $('.card.is-next');
   marcarVisto(a.id); if(S.me) api.registarSwipe(S.me.user.id, a.id, liked);
   if(liked){
-    addFav(a.id); vibrar(true); burst(el, 9); hdr.react('gosto'); hdr.say('Boa escolha.', 1500, 'gosto');
+    addFav(a.id); ronronar('curto'); burst(el, 9); hdr.react('gosto'); hdr.say('Boa escolha.', 1500, 'gosto');
     go($('img', el), { scale: [1, 1.07, 1] }, { duration: .6, ease: 'easeInOut' });
     await go(el, { x: [x0, x0 * .2], y: [y0, 0], rotate: [x0 / 24, 0], scale: [1, .96] }, { type: 'spring', stiffness: 320, damping: 16 }).finished;
     await wait(reduce() ? 0 : 160);
     await go(el, { x: [x0 * .2, 520], y: [0, -60], rotate: [0, 14], opacity: [1, 0] }, { duration: .55, ease: [.4, 0, .2, 1] }).finished;
     badgeFavs(); toast(`${a.name} ficou nos teus favoritos`);
   } else {
-    hdr.react('passar'); hdr.say('Até já.', 1100);
+    hdr.react('passar'); toque(); hdr.say('Até já.', 1100);
     await go(el, { x: [x0, -360], y: [y0, y0 + 30], rotate: [x0 / 24, -9], opacity: [1, 0] }, { duration: .8, ease: [.25, .1, .25, 1] }).finished;
   }
   if(next){ next.classList.replace('is-next', 'was-next'); await go(next, { scale: [.94, 1], y: [16, 0] }, { type: 'spring', stiffness: 260, damping: 22 }).finished; }
   S.idx++; S.busy = false; render();
 }
 function undo(){ if(!S.trilho.length || S.busy) return; S.idx = S.trilho.pop(); const a = cur(); S.vistos.delete(a.id); LS.set('vistos', [...S.vistos]); render();
-  hdr.react('desfazer'); hdr.say('Ups. Não vi nada.', 1400); go($('.card.is-top'), { x: [-260, 0], rotate: [-10, 0], opacity: [0, 1] }, { type: 'spring', stiffness: 240, damping: 22 }); }
+  hdr.react('desfazer'); toque(); hdr.say('Ups. Não vi nada.', 1400); go($('.card.is-top'), { x: [-260, 0], rotate: [-10, 0], opacity: [0, 1] }, { type: 'spring', stiffness: 240, damping: 22 }); }
 export function badgeFavs(){ $$('.fav-badge').forEach(b => { b.hidden = !S.favs.length; b.textContent = S.favs.length; go(b, { scale: [.4, 1.35, 1] }, { duration: .5 }); }); }
 
 // ---------- filtros: folha que sobe, contagem ao vivo ----------
@@ -238,16 +244,16 @@ async function meet(a){
   const msg = encodeURIComponent(`Olá! Vi ${art(a)} ${a.name} no Ronron e gostava de ${a.sex === 'femea' ? 'a' : 'o'} conhecer.`);
   mc.innerHTML = `<span class="rr-wrap"><span class="meet-rr"></span></span>
     <h2 class="disp" id="meet-t">Vão gostar um do outro</h2>
-    <p>${esc(c?.nome || 'Quem cuida')} cuida ${a.sex === 'femea' ? 'da' : 'do'} ${esc(a.name)}. Escreve-lhe e combinem uma visita, sem pressas.</p>
+    <p>${esc(c?.display_name || 'Quem cuida')} cuida ${a.sex === 'femea' ? 'da' : 'do'} ${esc(a.name)}. Escreve-lhe e combinem uma visita, sem pressas.</p>
     ${intl ? `<div class="cta purr" style="width:100%"><a class="primary" href="https://wa.me/${intl}?text=${msg}" target="_blank" rel="noopener">${icon('whatsapp-logo')} Escrever no WhatsApp</a></div>` : ''}
     ${c?.email ? `<a class="btn2" href="mailto:${esc(c.email)}?subject=${encodeURIComponent('Adoção pelo Ronron')}&body=${msg}">${icon('envelope-simple')}${esc(c.email)}</a>` : ''}
     ${!intl && !c?.email ? '<p class="muted">Este protetor ainda não deixou contacto.</p>' : ''}
     <div class="note">A adoção no Ronron é sempre gratuita. Nunca pagues nada adiantado.</div>
     <button class="quiet" id="meet-x">Agora não</button>`;
   m.hidden = false;
-  const mr = makeRonron($('.meet-rr', mc), { size: 150, pose: 'gente', base: 'ronronar' }); setTimeout(() => mr.react('conhecer'), 250);
+  const mr = makeRonron($('.meet-rr', mc), { size: 150, pose: 'gente', base: 'ronronar' }); setTimeout(() => { mr.react('conhecer'); ronronar('longo'); }, 250);
   go(m, { opacity: [0, 1] }, { duration: .25 }); go(mc, { y: [460, 0] }, { type: 'spring', stiffness: 220, damping: 24 });
-  setTimeout(() => confetti(mc), 500); vibrar(true);
+  setTimeout(() => confetti(mc), 500);
   $('#meet-x').onclick = fecharMeet; m.onclick = e => { if(e.target === m) fecharMeet(); };
 }
 export async function fecharMeet(){ const m = $('#meet'); if(m.hidden) return; await go($('#meet-card'), { y: [0, 460] }, { duration: .3, ease: 'easeIn' }).finished; m.hidden = true; }

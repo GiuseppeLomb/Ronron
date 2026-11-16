@@ -6,8 +6,9 @@ import { icon } from './icons.js';
 import { makeRonron, RR, rrMode } from './ronron.js';
 import * as api from './api.js';
 import { S, LS } from './state.js';
+import { ronronar, descansar } from './som.js';
 import { renderFeed, fecharFicha, fecharMeet, badgeFavs } from './feed.js';
-import { renderFavs, renderConta, renderMeus, renderPublicar, renderAdmin, renderAjuda, renderDefinicoes, renderApoiar, renderBoasVindas } from './ecras.js';
+import { renderFavs, renderConta, renderMeus, renderPublicar, renderAdmin, renderAjuda, renderDefinicoes, renderApoiar, renderBoasVindas, renderSobre } from './ecras.js';
 
 export let hdr;
 
@@ -40,7 +41,7 @@ function nav(){
   const html = TABS.map(([r, t, ic]) => `<a class="tab" href="#${r}" data-r="${r}">${icon(ic)}${t}${r === 'favoritos' ? `<span class="badge fav-badge" ${S.favs.length ? '' : 'hidden'}>${S.favs.length}</span>` : ''}</a>`).join('');
   $('#nav-top').innerHTML = html; $('#nav-bottom').innerHTML = html; marcar();
 }
-function marcar(){ const r = (location.hash.slice(1) || 'feed').split('-')[0]; const base = ['publicar', 'editar'].includes(r) ? 'meus' : ['admin', 'definicoes', 'ajuda', 'apoiar'].includes(r) ? 'conta' : r;
+function marcar(){ const r = (location.hash.slice(1) || 'feed').split('-')[0]; const base = ['publicar', 'editar'].includes(r) ? 'meus' : ['admin', 'definicoes', 'ajuda', 'apoiar', 'sobre', 'boas-vindas'].includes(r) ? 'conta' : r;
   $$('.tab').forEach(t => t.toggleAttribute('aria-current', t.dataset.r === base)); $$('.tab[aria-current]').forEach(t => t.setAttribute('aria-current', 'page')); }
 export function rotear(r){ if(location.hash.slice(1) === r) render(); else location.hash = r; }
 async function render(){
@@ -48,7 +49,7 @@ async function render(){
   $('#sheet').hidden = true; $('#meet').hidden = true; $('#celebra').hidden = true; marcar();
   go(view, { opacity: [0, 1] }, { duration: .25 });
   // primeiro login por concluir (contas Google): só deixa ver as regras e as definições
-  if(S.me?.perfil?.perfil_completo === false && !['boas-vindas', 'ajuda', 'definicoes'].includes(r)) return rotear('boas-vindas');
+  if(S.me?.perfil?.perfil_completo === false && !['boas-vindas', 'ajuda', 'definicoes', 'sobre'].includes(r)) return rotear('boas-vindas');
   if(r === 'boas-vindas') return renderBoasVindas(view);
   if(r === 'feed') return renderFeed(view);
   if(r === 'favoritos') return renderFavs(view);
@@ -60,6 +61,7 @@ async function render(){
   if(r === 'ajuda') return renderAjuda(view);
   if(r === 'definicoes') return renderDefinicoes(view);
   if(r === 'apoiar') return renderApoiar(view);
+  if(r === 'sobre') return renderSobre(view);
   rotear('feed');
 }
 addEventListener('hashchange', render);
@@ -70,18 +72,23 @@ function setupRonron(){
   RR.mode = LS.get('rr-modo', 'ativo');
   hdr = makeRonron($('#logo-rr'), { size: 46, pose: 'logo', base: 'logo', bubble: $('#logo-bubble') });
   $('.logo').addEventListener('pointerenter', e => { if(e.pointerType === 'mouse' && rrMode() !== 'off') hdr.react('ronronar'); });
-  $('.logo').addEventListener('click', () => { if(location.hash.slice(1) === 'feed' || !location.hash){ hdr.react('brincar'); hdr.say('Olá!', 1200); } });
+  $('.logo').addEventListener('click', () => { if(rrMode() === 'off') return; hdr.react('ronronar'); ronronar('curto'); if(location.hash.slice(1) === 'feed' || !location.hash) hdr.say('Olá!', 1200); });
   ['pointerdown', 'keydown'].forEach(ev => addEventListener(ev, () => { lastAct = Date.now(); rested = false; if(yawned){ yawned = false; if(hdr.current() === 'dormir') hdr.pose('logo'); } }, { passive: true }));
   setInterval(() => {
     if(rrMode() === 'off' || document.hidden) return;
     const idle = (Date.now() - lastAct) / 1000, n = RR.night;
-    if(!rested && idle > (n ? 12 : 25) && hdr.current() === 'logo'){ rested = true; hdr.seq([['gente', 1400], ['beijinho', 900], ['coçar', 1300], ['curioso', 600]], 'logo'); }
+    // só no Ativo: no Calmo há menos reações espontâneas
+    if(!rested && rrMode() === 'on' && idle > 25 && hdr.current() === 'logo'){ rested = true; hdr.seq([['gente', 1400], ['beijinho', 900], ['coçar', 1300], ['curioso', 600]], 'logo'); }
     if(!yawned && idle > (n ? 20 : 45) && hdr.current() === 'logo'){ yawned = true; hdr.seq([['gente', 600], ['bocejar', 1200], ['beijinho', 600]], 'logo'); }
-    if(yawned && idle > (n ? 40 : 90) && hdr.current() === 'logo') hdr.pose('dormir');
+    if(yawned && idle > (n ? 40 : 90) && hdr.current() === 'logo'){ hdr.pose('dormir'); descansar(); }
   }, 4000);
   RR.night = (h => h >= 22 || h < 7)(new Date().getHours());
   aplicarModo();
 }
+
+// ---------- abrir a app: o Ronron acena enquanto ronrona ~1,5 s ----------
+// o ronronar (~1,5 s) começa com o aceno
+function abrirApp(){ if(rrMode() === 'off') return; hdr.seq([['espreitar', 300], ['acenar', 1100], ['feliz', 500]], 'logo'); ronronar('abrir', { atrasoMs: 300 }); }
 
 // ---------- entrada: o Ronron nasce do logo, espreguiça-se e acena ----------
 async function intro(){
@@ -91,7 +98,7 @@ async function intro(){
   ov.innerHTML = `<div style="display:grid;justify-items:center;gap:12px"><span class="rr-bubble" id="intro-b" style="position:relative;transform-origin:50% 100%"></span><span id="intro-rr"></span></div>`;
   $('#app').appendChild(ov);
   const big = makeRonron($('#intro-rr'), { size: 200, pose: 'logo', base: 'gente', bubble: $('#intro-b') });
-  big.react('abrir'); setTimeout(() => big.say('Olá! Encontrei-te uns amigos.', 1800), 2100);
+  big.react('abrir'); ronronar('abrir', { atrasoMs: 2150 });   // na entrada grande o aceno começa aos 2,15 s setTimeout(() => big.say('Olá! Encontrei-te uns amigos.', 1800), 2100);
   await wait(3900);
   const from = $('#intro-rr').getBoundingClientRect(), to = $('#logo-rr').getBoundingClientRect();
   big.pose('logo');
@@ -130,9 +137,12 @@ async function nativos(){
     if(!$('#meet').hidden) return fecharMeet();
     if(!$('#sheet').hidden) return fecharFicha();
     if(location.hash && location.hash !== '#feed') return history.back();
-    App.minimizeApp();
+    // sair: um ronronar curto antes de a app ir para segundo plano
+    if(rrMode() !== 'off'){ hdr.react('ronronar'); ronronar('curto'); setTimeout(() => App.minimizeApp(), 520); } else App.minimizeApp();
   });
-  App.addListener('resume', verificarAprovados);
+  // ronronar forte ao voltar à app depois de mais de 30 minutos em segundo plano
+  App.addListener('pause', () => LS.set('pausa', Date.now()));
+  App.addListener('resume', () => { verificarAprovados(); if(Date.now() - LS.get('pausa', Date.now()) > 30 * 60 * 1000) abrirApp(); });
   try{ const { SplashScreen } = await import('@capacitor/splash-screen'); SplashScreen.hide(); }catch{}
 }
 
@@ -140,8 +150,11 @@ async function nativos(){
 (async () => {
   aplicarTema();
   $('#btn-def').innerHTML = icon('gear'); $('#btn-def').onclick = () => rotear('definicoes');
-  if(api.ENV.ambiente === 'staging'){ const t = document.createElement('div'); t.className = 'env-tag'; t.textContent = 'Testes'; document.body.appendChild(t); }
+  // etiqueta só nas versões de teste (a compilação de lançamento retira este bloco)
+  if(import.meta.env.VITE_AMBIENTE === 'staging'){ const t = document.createElement('div'); t.className = 'env-tag'; t.textContent = 'Testes'; document.body.appendChild(t); }
   setupRonron(); nav(); rede(); nativos();
   await carregarMe(); badgeFavs();
+  const vaiHaverIntro = rrMode() !== 'off' && !reduce() && LS.get('intro-hoje', '') !== new Date().toDateString();
+  if(!vaiHaverIntro) setTimeout(abrirApp, 350);   // abrir a app (sem a entrada grande): esticão e aceno no logo + ronronar forte
   const i = intro(); render(); await i; verificarAprovados();
 })();
