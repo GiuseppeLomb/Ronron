@@ -10,15 +10,13 @@ export { ENV };
 
 export const nativo = Capacitor.isNativePlatform();
 export const Ronron = nativo ? registerPlugin('Ronron') : null;
-// volume: controlo "Volume do Ronron" nas Definições (0-1, por omissão 1). versao: 'atual', 'a1' (altifalante, sopro) ou 'a2' (altifalante, garganta)
-export const PREF = { som: LS.get('som', true), vibracao: LS.get('vibracao', true), variante: LS.get('vib-variante', 'A'),
-                      volume: LS.get('som-volume', 1), versao: LS.get('som-versao', 'a1') };
-const CHAVE = { variante: 'vib-variante', volume: 'som-volume', versao: 'som-versao' };
-export function definir(k, v){ PREF[k] = v; LS.set(CHAVE[k] || k, v); if(k === 'som' && !v) pararTudo(); }
-export const ficheiro = (n, versao = PREF.versao) => n + (versao === 'atual' ? '' : '-' + versao);
+export const PREF = { som: LS.get('som', true), vibracao: LS.get('vibracao', true), variante: LS.get('vib-variante', 'A') };
+export function definir(k, v){ PREF[k] = v; LS.set(k === 'variante' ? 'vib-variante' : k, v); if(k === 'som' && !v) pararTudo(); }
+// Ganho total = ficheiro (pico real -1,3 dBTP) x volume da app (1.0 Ativo, 0.5 Calmo) x plugin (limitado a 1.0): nunca passa de 1.0.
+export const VOLUME_MODO = { ativo: 1, noite: 1, calmo: 0.5 };
 
-// duração (ms), fade-out (ms) e volume de cada som. Reações a 1.0 (x Volume do Ronron), sem outros multiplicadores.
-// Só o repouso (loop de fundo enquanto dorme) toca a 35%, e isso aparece no ecrã de testes.
+// duração (ms), fade-out (ms) e volume de cada som (ficheiros FLAC a ~-16,5 LUFS, pico real -1,3 dBTP).
+// Reações a 1.0; o repouso (loop de fundo enquanto dorme, só no modo Ativo) a 35%.
 export const SONS = { curto: { dur: 600, saida: 220, vol: 1 }, medio: { dur: 1650, saida: 450, vol: 1 }, longo: { dur: 3200, saida: 800, vol: 1 },
                       abrir: { dur: 1500, saida: 600, vol: 1 }, repouso: { dur: 6500, saida: 0, vol: .35 } };
 const nivel = () => RR.mode === 'desligado' ? 'nada' : RR.mode === 'calmo' ? 'calmo' : RR.night ? 'noite' : 'ativo';
@@ -31,12 +29,12 @@ export function anotar(t){ registoJS.push(new Date().toLocaleTimeString('pt-PT',
 // 'curto' ~0,6 s (gosto, tocar no Ronron, sair) · 'medio' ~1,6 s · 'longo' ~3,2 s (Quero conhecer) · 'abrir' ~1,5 s (abrir a app)
 export function ronronar(tipo = 'curto', { atrasoMs = 0, variante, forcarSom = false } = {}){
   const n = nivel(); if(n === 'nada' && !forcarSom) return;
-  const som = (PREF.som && n !== 'calmo') || forcarSom, vib = PREF.vibracao;
+  const som = PREF.som || forcarSom, vib = PREF.vibracao;   // o mesmo som em Ativo e Calmo; só muda a intensidade
   if(!som && !vib) return;
   pararRepouso();
-  const s = SONS[tipo], suave = n === 'calmo' || n === 'noite';
-  const args = { som: ficheiro(tipo), volume: s.vol * PREF.volume, variante: variante || PREF.variante, env: vib ? ENV[tipo] : [],
-                 passoMs: 20, intensidade: suave ? .6 : 1, saidaMs: s.saida };
+  const s = SONS[tipo];
+  const args = { som: tipo, volume: Math.min(1, s.vol * (VOLUME_MODO[n] ?? 1)), variante: variante || PREF.variante, env: vib ? ENV[tipo] : [],
+                 passoMs: 20, intensidade: n === 'calmo' ? .6 : n === 'noite' ? .75 : 1, saidaMs: s.saida };
   const vai = () => {
     if(nativo){
       (som ? Ronron.tocar(args) : Ronron.vibrar(args))
@@ -58,14 +56,14 @@ let emRepouso = false, repousoFeito = false;
 export function descansar(){
   const n = nivel(); if(!PREF.som || (n !== 'ativo' && n !== 'noite') || emRepouso || repousoFeito || document.hidden) return;
   repousoFeito = true; emRepouso = true;
-  const vol = SONS.repouso.vol * PREF.volume;
-  if(nativo) Ronron.tocar({ som: ficheiro('repouso'), volume: vol, loop: true, maxMs: 20000, fadeInMs: 1500 }).then(r => anotar('repouso: ' + (r?.tocou ? 'a tocar' : 'NÃO tocou'))).catch(() => {});
-  else web.repouso(ficheiro('repouso'), vol);
+  const vol = SONS.repouso.vol;
+  if(nativo) Ronron.tocar({ som: 'repouso', volume: vol, loop: true, maxMs: 20000, fadeInMs: 1500 }).then(r => anotar('repouso: ' + (r?.tocou ? 'a tocar' : 'NÃO tocou'))).catch(() => {});
+  else web.repouso('repouso', vol);
   setTimeout(() => { emRepouso = false; }, 22500);
 }
 export function pararRepouso(){
   if(!emRepouso) return; emRepouso = false;
-  if(nativo) Ronron.parar({ som: ficheiro('repouso'), fadeMs: 400, vibracao: false }).catch(() => {}); else web.parar();
+  if(nativo) Ronron.parar({ som: 'repouso', fadeMs: 400, vibracao: false }).catch(() => {}); else web.parar();
 }
 export function pararTudo(){ emRepouso = false; if(nativo) Ronron.parar({ fadeMs: 150 }).catch(() => {}); else web.parar(); }
 
@@ -78,7 +76,7 @@ export const web = (() => {
   let ctx = null, loop = null; const bufs = {}, aCarregar = {};
   const contexto = () => { if(!ctx){ const AC = window.AudioContext || window.webkitAudioContext; if(!AC) return null; ctx = new AC(); } if(ctx.state === 'suspended') ctx.resume().catch(() => {}); return ctx; };
   const preparar = n => aCarregar[n] || (aCarregar[n] = (async () => {
-    try{ const c = contexto(); bufs[n] = await c.decodeAudioData(await (await fetch(`sons/ronron-${n}.ogg`)).arrayBuffer()); }catch(e){ anotar(`WebView: não descodificou ${n} (${e?.message || e})`); }
+    try{ const c = contexto(); bufs[n] = await c.decodeAudioData(await (await fetch(`sons/ronron-${n}.${n === 'bip' ? 'ogg' : 'flac'}`)).arrayBuffer()); }catch(e){ anotar(`WebView: não descodificou ${n} (${e?.message || e})`); }
   })());
   const tocar = (n, v, emLoop = false) => preparar(n).then(() => {
     const c = contexto(), b = bufs[n]; if(!c || !b) return null;

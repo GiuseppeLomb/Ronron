@@ -78,7 +78,8 @@ function setupRonron(){
   setInterval(() => {
     if(rrMode() === 'off' || document.hidden) return;
     const idle = (Date.now() - lastAct) / 1000, n = RR.night;
-    if(!rested && idle > (n ? 12 : 25) && hdr.current() === 'logo'){ rested = true; hdr.seq([['gente', 1400], ['beijinho', 900], ['coçar', 1300], ['curioso', 600]], 'logo'); }
+    // só no Ativo: no Calmo há menos reações espontâneas
+    if(!rested && rrMode() === 'on' && idle > 25 && hdr.current() === 'logo'){ rested = true; hdr.seq([['gente', 1400], ['beijinho', 900], ['coçar', 1300], ['curioso', 600]], 'logo'); }
     if(!yawned && idle > (n ? 20 : 45) && hdr.current() === 'logo'){ yawned = true; hdr.seq([['gente', 600], ['bocejar', 1200], ['beijinho', 600]], 'logo'); }
     if(yawned && idle > (n ? 40 : 90) && hdr.current() === 'logo'){ hdr.pose('dormir'); descansar(); }
   }, 4000);

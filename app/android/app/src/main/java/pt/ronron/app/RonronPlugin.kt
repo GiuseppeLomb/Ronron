@@ -38,8 +38,9 @@ import kotlin.math.roundToInt
  */
 @CapacitorPlugin(name = "Ronron")
 class RonronPlugin : Plugin() {
-    // 3 versões de cada som ("" = atual, -a1 = altifalante sopro, -a2 = altifalante garganta) + bip de diagnóstico
-    private val nomes = listOf("curto", "medio", "longo", "abrir", "repouso").flatMap { listOf(it, "$it-a1", "$it-a2") } + "bip"
+    // sons em FLAC (sem perdas) + bip de diagnóstico (temporário, sai quando o som for aprovado)
+    private val nomes = listOf("curto", "medio", "longo", "abrir", "repouso", "bip")
+    private fun ficheiro(n: String) = if (n == "bip") "public/sons/ronron-bip.ogg" else "public/sons/ronron-$n.flac"
     // canal de multimédia (STREAM_MUSIC); sem pedir foco de áudio, por isso o sistema não baixa este som
     private val atrib: AudioAttributes = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
         .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build()
@@ -69,9 +70,9 @@ class RonronPlugin : Plugin() {
         }
         for (n in nomes) {
             try {
-                val fd = context.assets.openFd("public/sons/ronron-$n.ogg"); fds.add(fd)
+                val fd = context.assets.openFd(ficheiro(n)); fds.add(fd)
                 ids[n] = pool.load(fd, 1)
-            } catch (e: Exception) { anotar("ERRO a abrir ronron-$n.ogg: ${e.message}") }
+            } catch (e: Exception) { anotar("ERRO a abrir ${ficheiro(n)}: ${e.message}") }
         }
         anotar("plugin pronto · Android ${Build.VERSION.SDK_INT} · ${Build.MANUFACTURER} ${Build.MODEL}")
     }
@@ -97,7 +98,7 @@ class RonronPlugin : Plugin() {
     @PluginMethod
     fun tocar(call: PluginCall) {
         val nome = call.getString("som") ?: return call.reject("falta som")
-        val vol = (call.getDouble("volume") ?: 0.8).toFloat().coerceIn(0f, 1f)
+        val vol = (call.getDouble("volume") ?: 1.0).toFloat().coerceIn(0f, 1f)   // nunca acima de 1.0
         val loop = call.getBoolean("loop") ?: false
         val maxMs = (call.getInt("maxMs") ?: 20000).toLong()
         val entrada = (call.getInt("fadeInMs") ?: 0).toLong()

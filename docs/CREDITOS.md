@@ -5,10 +5,11 @@ Tudo o que a app usa e não foi feito no projeto, com origem e licença.
 ## Sons
 | Ficheiro na app | Origem | Autor | Licença |
 |---|---|---|---|
-| `app/public/sons/ronron-curto.ogg` (0,6 s), `ronron-medio.ogg` (1,65 s), `ronron-longo.ogg` (3,2 s), `ronron-abrir.ogg` (1,5 s), e as versões para altifalante `-a1` (sopro) e `-a2` (garganta) | BigSoundBank n.º 0436, "Cat purr" (bigsoundbank.com) | Joseph Sardin | CC0 1.0 (domínio público) |
-| `app/public/sons/ronron-repouso.ogg`, `-a1`, `-a2` (loop de 6,5 s) | BigSoundBank n.º 0981, "Cat purring 2" (bigsoundbank.com) | Joseph Sardin | CC0 1.0 (domínio público) |
+| `app/public/sons/ronron-curto.flac` (0,6 s), `ronron-medio.flac` (1,65 s), `ronron-longo.flac` (3,2 s), `ronron-abrir.flac` (1,5 s) | BigSoundBank n.º 0436, "Cat purr" (bigsoundbank.com) | Joseph Sardin | CC0 1.0 (domínio público) |
+| `app/public/sons/ronron-repouso.flac` (loop de 6,5 s) | BigSoundBank n.º 0981, "Cat purring 2" (bigsoundbank.com) | Joseph Sardin | CC0 1.0 (domínio público) |
+| `app/public/sons/ronron-bip.ogg` (1 kHz, só diagnóstico, temporário) | gerado no projeto | — | — |
 
-Tratamento feito no projeto para altifalante de telemóvel (script em `docs/sons-processar.py`, ffmpeg + numpy): redução de ruído; harmónicos do grave por saturação suave com assimetria (o altifalante não reproduz 25-50 Hz, os harmónicos fazem o cérebro "ouvir" o grave); realce 150 Hz-3 kHz; compressão; reposição da respiração original; cortes com fade; normalização a -12 LUFS com pico real até -1 dBTP; Ogg Vorbis mono 48 kHz. Valores finais: curto -11,9 LUFS / -1,6 dBTP; médio -12,3 / -1,6; longo -12,3 / -1,4; abrir -12,2 / -1,2; repouso -12,3 / -1,4. Total: 141 KB.
+Cadeia limpa (script `docs/sons-processar.py`, ffmpeg + numpy), sem saturação nem harmónicos artificiais: redução de ruído leve; EQ suave para altifalante (passa-alto 60 Hz, -3 dB abaixo de 110 Hz, +2,5 dB a 500 Hz, +3 dB a 1,8 kHz, passa-baixo 9 kHz); compressão moderada (2:1... 3:1, ataque 3 ms); cortes com fade; limitador lento só nos pulsos mais fortes (máx. 3,4 dB); FLAC 16 bits (sem perdas). Valores finais: curto -16,2 LUFS, médio -16,5, longo -16,6, abrir -17,0, repouso -16,3; pico real -1,3 dBTP em todos; zero amostras em clipping; resíduo não linear -31 a -37 dB; energia acima de 4 kHz igual à do original (sem distorção). Total: 584 KB.
 
 ## Letras
 - Instrument Serif e Albert Sans: SIL Open Font License 1.1, incluídas na app através do Fontsource (sem pedidos ao Google Fonts).

@@ -1,6 +1,6 @@
-# Tratamento dos ronronares para altifalante de telemóvel.
-# 1) limpeza  2) harmónicos do grave (saturação suave com assimetria -> 2.º, 3.º, 4.º... harmónicos audíveis)
-# 3) realce 150 Hz-3 kHz  4) compressão  5) cortes com fade  6) -12 LUFS / pico real <= -1 dBTP  7) Ogg Vorbis
+# Ronron: cadeia de áudio LIMPA (v4). Sem saturação nem harmónicos artificiais.
+# Ronronar real -> redução de ruído leve -> EQ suave para altifalante -> compressão moderada -> cortes com fade
+# -> -14 LUFS, pico real <= -1 dBTP, zero clipping (limitador só como segurança, ganho de redução medido) -> Ogg Vorbis q5.
 import subprocess, re, json, wave, os
 import numpy as np
 
@@ -8,100 +8,96 @@ D = os.path.dirname(os.path.abspath(__file__)); os.chdir(D)
 U = '/root/.claude/uploads/ea0f0d6f-e71a-55a2-af33-c4d6be2ce74b/'
 SRC = {'0436': U + '58100109-ANMLCat_Cat_purr_ID_0436_BigSoundBank.com.wav',
        '0981': U + 'f8dbe483-ANMLCat_Cat_purring_2_ID_0981_BigSoundBank.com.wav'}
-ALVO_LUFS, ALVO_TP = -12.0, -1.0
+SR, ALVO, TETO = 48000, -14.0, -1.0
+
+EQ = ('highpass=f=60:poles=2,'                    # só o grave que nenhum altifalante de telemóvel reproduz
+      'bass=g=-3:f=110:w=0.7,'                    # menos grave, mais margem (suave)
+      'equalizer=f=500:t=q:w=1.0:g=2.5,'          # corpo audível no altifalante
+      'equalizer=f=1800:t=q:w=1.0:g=3,'           # textura do ronronar
+      'lowpass=f=9000:poles=2')
+LIMPA = 'aresample=48000,afftdn=nr=8:nf=-48,' + EQ + ',acompressor=threshold=-28dB:ratio=3:attack=3:release=200:knee=8:makeup=1'
 
 def ff(*a):
     r = subprocess.run(['ffmpeg', '-hide_banner', '-nostats', '-y', *a], capture_output=True, text=True)
-    if r.returncode: raise SystemExit(r.stderr[-2000:])
+    if r.returncode: raise SystemExit(r.stderr[-1500:])
     return r.stderr
-
 def medir(f):
     e = ff('-i', f, '-af', 'ebur128=peak=true:framelog=quiet', '-f', 'null', '-')
-    i = float(re.findall(r'I:\s+(-?[\d.]+) LUFS', e)[-1]); tp = float(re.findall(r'Peak:\s+(-?[\d.inf]+) dBFS', e)[-1])
-    return i, tp
+    return float(re.findall(r'I:\s+(-?[\d.]+) LUFS', e)[-1]), float(re.findall(r'Peak:\s+(-?[\d.inf]+) dBFS', e)[-1])
+def ler(f, af=None):
+    cmd = ['ffmpeg', '-v', 'error', '-i', f] + (['-af', af] if af else []) + ['-f', 'f32le', '-ac', '1', '-ar', str(SR), '-']
+    return np.frombuffer(subprocess.run(cmd, capture_output=True).stdout, dtype=np.float32).astype(np.float64)
+def gravar(f, x, bits=24):
+    if bits == 24:
+        ff_in = np.clip(x, -1, 1).astype(np.float32).tobytes()
+        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'f32le', '-ar', str(SR), '-ac', '1', '-i', '-', '-c:a', 'pcm_s24le', f], input=ff_in, check=True)
+    else:
+        w = wave.open(f, 'wb'); w.setnchannels(1); w.setsampwidth(2); w.setframerate(SR); w.writeframes((np.clip(x, -1, 1)*32767).astype(np.int16).tobytes()); w.close()
 
-# 1-4: cadeia completa sobre o ficheiro inteiro
-CADEIA = (
-  "[0:a]aresample=48000,afftdn=nr=10:nf=-44,asplit=2[g][m];"
-  # banda grave -> saturação com assimetria (dcshift) -> fica só com os harmónicos 150 Hz-2 kHz
-  "[g]lowpass=f=140:poles=2,lowpass=f=140:poles=2,volume=16dB,dcshift=shift=0.12,asoftclip=type=tanh,"
-  "highpass=f=150:poles=2,highpass=f=150:poles=2,lowpass=f=2200:poles=2[h];"
-  # sinal principal: mantém algum grave para auscultadores, tira o sub inútil
-  "[m]highpass=f=80:poles=2[p];"
-  "[p][h]amix=inputs=2:weights='1 0.7':normalize=0,"
-  "equalizer=f=300:t=q:w=0.9:g=4,equalizer=f=1000:t=q:w=1.0:g=3,equalizer=f=2500:t=q:w=1.2:g=2,"
-  "lowpass=f=7000:poles=2,"
-  "acompressor=threshold=-20dB:ratio=2:attack=12:release=350:knee=6:makeup=1.5[o]")
+# 1) cadeia limpa sobre os ficheiros inteiros, e uma referência só com filtros lineares (para medir distorção)
 for k, f in SRC.items():
-    ff('-i', f, '-filter_complex', CADEIA, '-map', '[o]', '-ac', '1', '-c:a', 'pcm_f32le', f'proc{k}.wav')
+    ff('-i', f, '-af', LIMPA, '-ac', '1', '-c:a', 'pcm_f32le', f'limpo{k}.wav')
+    ff('-i', f, '-af', 'aresample=48000,' + EQ, '-ac', '1', '-c:a', 'pcm_f32le', f'linear{k}.wav')
+limpo = {k: ler(f'limpo{k}.wav') for k in SRC}; linear = {k: ler(f'linear{k}.wav') for k in SRC}
 
-def ler(f):
-    out = subprocess.run(['ffmpeg', '-v', 'error', '-i', f, '-f', 'f32le', '-ac', '1', '-ar', '48000', '-'], capture_output=True).stdout
-    return np.frombuffer(out, dtype=np.float32).copy()
-def gravar(f, x, sr=48000):
-    x16 = np.clip(x, -1, 1); w = wave.open(f, 'wb'); w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr)
-    w.writeframes((x16 * 32767).astype(np.int16).tobytes()); w.close()
+def fades(s, fin, fout):
+    s = s.copy(); a, b = int(fin*SR), int(fout*SR)
+    s[:a] *= np.linspace(0, 1, a)**1.5; s[len(s)-b:] *= np.cos(np.linspace(0, np.pi/2, b))**2; return s
+def cortar(x, ini, dur): return x[int(ini*SR):int(ini*SR)+int(dur*SR)].copy()
+CORTES = {'curto': (5.22, 0.60, 0.03, 0.22), 'medio': (5.22, 1.65, 0.04, 0.45),
+          'longo': (4.62, 3.20, 0.12, 0.80), 'abrir': (6.55, 1.50, 0.05, 0.60)}
+t0, L, C = 70.0, 6.5, 1.5; Ln, Cn = int(L*SR), int(C*SR)
+def loop(x):
+    X = x[:Ln+Cn]; Y = X[Cn:Cn+Ln].copy(); r = np.linspace(0, 1, Cn)
+    Y[-Cn:] = X[Ln:Ln+Cn]*np.cos(r*np.pi/2) + X[:Cn]*np.sin(r*np.pi/2); return Y
 
-SR = 48000
-a, b = ler('proc0436.wav'), ler('proc0981.wav')
-ORIG = ler(SRC['0436'])
-def envolvente(x, jan=0.05):
-    p = int(jan*SR); k = int(np.ceil(len(x)/p)); xx = np.pad(x, (0, k*p-len(x)))
-    e = np.sqrt((xx.reshape(k, p)**2).mean(1)) + 1e-6; e = np.convolve(e, np.ones(3)/3, 'same')
-    return np.interp(np.arange(len(x)), np.arange(k)*p + p/2, e)
-def corte(x, ini, dur, fin, fout, resp=0.0):
-    s = x[int(ini*SR):int((ini+dur)*SR)].copy(); n = len(s)
-    if resp:   # ganho = (envolvente original / envolvente tratada)^resp: volta a subir e descer como o gato respira
-        o = ORIG[int(ini*SR):int(ini*SR)+n]; g = (envolvente(o)/envolvente(s)) ** resp
-        g = np.clip(g / np.median(g), 0.2, 3.0); s *= g
-    s[:int(fin*SR)] *= np.linspace(0, 1, int(fin*SR)) ** 1.5
-    fo = int(fout*SR); s[n-fo:] *= np.cos(np.linspace(0, np.pi/2, fo)) ** 2
-    return s
-CORTES = {
-  'curto':  corte(a, 5.22, 0.60, 0.03, 0.22, resp=1.15),
-  'medio':  corte(a, 5.22, 1.65, 0.04, 0.45, resp=1.15),
-  'longo':  corte(a, 4.62, 3.20, 0.12, 0.80, resp=1.15),
-  'abrir':  corte(a, 6.40, 3.10, 0.10, 1.10, resp=1.15),   # abrir a app: ~3 s, encorpado, fade-out longo
-}
-# loop de repouso (6,5 s, cruzamento de 1,5 s em potência constante)
-t, L, C = 70.0, 6.5, 1.5; s0, Ln, Cn = int(t*SR), int(L*SR), int(C*SR)
-X = b[s0:s0+Ln+Cn]; Y = X[Cn:Cn+Ln].copy(); r = np.linspace(0, 1, Cn)
-Y[-Cn:] = X[Ln:Ln+Cn]*np.cos(r*np.pi/2) + X[0:Cn]*np.sin(r*np.pi/2)
-CORTES['repouso'] = Y
+clips = {n: fades(cortar(limpo['0436'], a, b), c, d) for n, (a, b, c, d) in CORTES.items()}
+refs  = {n: fades(cortar(linear['0436'], a, b), c, d) for n, (a, b, c, d) in CORTES.items()}
+clips['repouso'] = loop(limpo['0981'][int(t0*SR):]); refs['repouso'] = loop(linear['0981'][int(t0*SR):])
 
-res = {}
-for n, x in CORTES.items():
-    gravar(f'c_{n}.wav', x / max(1e-9, np.abs(x).max()) * 0.5)
-    ganho = 0.0
-    for _ in range(7):   # ganho -> limitador com sobreamostragem (pico real) -> medir -> ajustar
-        ff('-i', f'c_{n}.wav', '-af', f'volume={ganho:.2f}dB,aresample=192000,alimiter=limit=0.80:attack=1.5:release=40:level=disabled:asc=1,aresample=48000',
-           '-c:a', 'pcm_s16le', f'n_{n}.wav')
-        i, tp = medir(f'n_{n}.wav')
-        if abs(i - ALVO_LUFS) < 0.25 and tp <= -1.4: break
-        ganho += (ALVO_LUFS - i) * 1.3
-    ff('-i', f'n_{n}.wav', '-c:a', 'libvorbis', '-q:a', '4', '-ar', '48000', '-ac', '1', f'ronron-{n}.ogg')
-    i2, tp2 = medir(f'ronron-{n}.ogg')
-    res[n] = {'LUFS': round(i2, 1), 'pico_real_dBTP': round(tp2, 1), 'dur_s': round(len(x)/SR, 2), 'KB': round(os.path.getsize(f'ronron-{n}.ogg')/1024, 1)}
+def finalizar(n, x):
+    # ganho para ~-16 LUFS antes do limitador; limitador lento (12 ms de antecipação, 400 ms de recuperação) só nos pulsos mais fortes;
+    # teto -1,3 dBFS medido a 192 kHz (pico real); FLAC 16 bits (sem perdas: o codec não acrescenta nada)
+    gravar(f'c_{n}.wav', x)
+    i0, tp0 = medir(f'c_{n}.wav'); g = -16.0 - i0; teto = -1.3
+    ff('-i', f'c_{n}.wav', '-af', f'volume={g:.3f}dB,aresample=192000,alimiter=limit={10**(teto/20):.4f}:attack=12:release=400:level=disabled,aresample=48000:dither_method=triangular',
+       '-c:a', 'flac', '-sample_fmt', 's16', f'ronron-{n}.flac')
+    reducao = max(0.0, (tp0 + g) - teto)
+    y = ler(f'ronron-{n}.flac'); i2, tp2 = medir(f'ronron-{n}.flac'); pico = float(np.abs(y).max())
+    return y, {'LUFS': round(i2, 1), 'pico_real_dBTP': round(tp2, 1), 'pico_amostra_dBFS': round(20*np.log10(pico), 1),
+               'amostras_em_clipping': int((np.abs(y) >= 0.999).sum()), 'limitador_cortou_no_maximo_dB': round(reducao, 1),
+               'KB': round(os.path.getsize(f'ronron-{n}.flac')/1024, 1)}
 
-# energia acima de 150 Hz (o que o altifalante consegue dar), antes e depois
-def fracao_audivel(x):
-    X = np.abs(np.fft.rfft(x))**2; f = np.fft.rfftfreq(len(x), 1/SR); return float(X[f >= 150].sum() / X.sum())
-orig = ler(SRC['0436'])[int(4.62*SR):int(7.82*SR)]
-res['_energia_acima_150Hz'] = {'antes': round(fracao_audivel(orig)*100, 1), 'depois_longo': round(fracao_audivel(CORTES['longo'])*100, 1)}
+def alinhar(y, ref):
+    m = 1440; n = min(len(y), len(ref)) - m
+    c = [float(y[l:l+n] @ ref[:n]) for l in range(0, m)]; l = int(np.argmax(c)); return y[l:l+n], ref[:n], l
+def analise(y, ref, orig):
+    # distorção não linear acrescentada pelo limitador e pelo Ogg: resíduo face ao som antes deles (alinhado; ganho ótimo por janelas de 100 ms)
+    y, ref, atraso = alinhar(y, ref); n = len(y); p = int(0.1*SR); k = n//p; res = 0.0; tot = 0.0
+    for j in range(k):
+        a, b = y[j*p:(j+1)*p], ref[j*p:(j+1)*p]
+        g = float(a @ b / max(1e-12, b @ b)); res += float(((a - g*b)**2).sum()); tot += float((a**2).sum())
+    def hf(x):   # energia acima de 4 kHz relativa ao total (a saturação aumenta-a)
+        X = np.abs(np.fft.rfft(x))**2; f = np.fft.rfftfreq(len(x), 1/SR); return 10*np.log10(X[f > 4000].sum() / X.sum())
+    return {'residuo_nao_linear_dB': round(10*np.log10(max(1e-12, res/tot)), 1), 'energia_>4kHz_dB': round(hf(y), 1), 'original_>4kHz_dB': round(hf(orig[:n]), 1)}
 
-def lufs_altifalante(f, ganho_db=0.0):
-    ff('-i', f, '-af', f'volume={ganho_db}dB,highpass=f=150:poles=2,highpass=f=150:poles=2', '-c:a', 'pcm_s16le', 'tmp_hp.wav'); return medir('tmp_hp.wav')[0]
-ANT = '/tmp/claude-0/-home-user-Ronron/ea0f0d6f-e71a-55a2-af33-c4d6be2ce74b/scratchpad/som/'
-res['_altifalante_LUFS_acima_150Hz'] = {n: {'antes': round(lufs_altifalante(ANT + f'ronron-{n}.ogg', -6.9 if n != 'repouso' else -18.4), 1), 'agora': round(lufs_altifalante(f'ronron-{n}.ogg'), 1)} for n in ['curto', 'medio', 'longo', 'repouso']}
-def respiracao_db(x):   # quanto o volume sobe e desce entre respirações (RMS em janelas de 100 ms, percentis 90/10)
-    p = int(0.1*SR); k = len(x)//p; e = np.sqrt((x[:k*p].reshape(k, p)**2).mean(1)) + 1e-9
-    return round(float(20*np.log10(np.percentile(e, 90)/np.percentile(e, 10))), 1)
-res['_respiracao_dB'] = {'original': respiracao_db(orig), 'agora_longo': respiracao_db(ler('ronron-longo.ogg')), 'agora_abrir': respiracao_db(ler('ronron-abrir.ogg'))}
-# envolventes para a vibração (passo 20 ms, 0..1), a partir dos ficheiros finais
+res = {}; ORIG = {n: cortar(ler(SRC['0436']), a, b) for n, (a, b, _, _) in CORTES.items()}
+ORIG['repouso'] = ler(SRC['0981'])[int(t0*SR)+Cn:int(t0*SR)+Cn+Ln]
+for n, x in clips.items():
+    y, r = finalizar(n, x); r.update(analise(y, ler(f'c_{n}.wav'), ORIG[n])); res[n] = r
+
+# comparação com a versão que distorcia (a1, que vinha escolhida por omissão)
+A1 = '/home/user/Ronron/app/public/sons/ronron-abrir-a1.ogg'
+if os.path.exists(A1):
+    ya1 = ler(A1); res['_antes_abrir_a1'] = {'energia_>4kHz_dB': analise(ya1, refs['abrir'], ORIG['abrir'])['energia_>4kHz_dB'],
+        'amostras_em_clipping': int((np.abs(ya1) >= 0.999).sum()), 'pico_amostra_dBFS': round(20*np.log10(float(np.abs(ya1).max())), 1)}
+
+# envolventes da respiração para a vibração (passo 20 ms)
 env = {}
-for n in CORTES:
-    x = ler(f'ronron-{n}.ogg'); p = int(0.02*SR); k = len(x)//p
-    e = np.sqrt((x[:k*p].reshape(k, p)**2).mean(1)); e = np.convolve(e, np.ones(3)/3, 'same')
-    e = (e - e.min()) / max(1e-9, e.max() - e.min()); env[n] = [round(float(v), 2) for v in e]
+for n in res:
+    if n.startswith('_'): continue
+    x = ler(f'ronron-{n}.flac'); p = int(0.02*SR); k = len(x)//p
+    e = np.sqrt((x[:k*p].reshape(k, p)**2).mean(1)); e = np.convolve(np.pad(e, (4, 4), mode='edge'), np.ones(9)/9, 'valid')
+    lo, hi = np.percentile(e, 10), np.percentile(e, 95); env[n] = [round(float(v), 2) for v in np.clip((e - lo)/max(1e-9, hi - lo), 0, 1)]
 json.dump(env, open('envolventes.json', 'w'))
-print(json.dumps(res, indent=1))
+print(json.dumps(res, indent=1, ensure_ascii=False))

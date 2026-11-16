@@ -30,7 +30,7 @@ android {
         }
     }
     androidResources {
-        noCompress 'ogg'   // o SoundPool lê os sons diretamente do APK (openFd)
+        noCompress 'ogg', 'flac'   // o SoundPool lê os sons diretamente do APK (openFd)
     }
     buildTypes {
         release {
