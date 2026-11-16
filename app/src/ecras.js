@@ -295,8 +295,7 @@ export function renderDefinicoes(view){
     ${nativo ? `<div class="card-s reveal"><h2>Notificações</h2><p class="small muted" style="margin:0">Avisamos-te quando um gato teu for aprovado.</p><div class="row-btns"><button class="btn2" id="notif">${icon('bell')}Permitir notificações</button></div></div>` : ''}
     ${S.me ? `<div class="card-s reveal"><h2>Conta</h2><button class="linkrow" id="sair2">${icon('sign-out')}<span class="grow" style="text-align:left">Terminar sessão</span></button>
       <button class="linkrow" id="apagar-conta" style="color:#B4432E">${icon('trash')}<span class="grow" style="text-align:left">Apagar a minha conta</span></button></div>` : ''}
-    <div class="card-s reveal"><h2>Sobre</h2><p class="small muted" style="margin:0">Ronron ${__VERSAO__} · ${api.ENV.ambiente === 'staging' ? 'ambiente de testes' : 'produção'}</p>
-      <a class="linkrow" href="https://giuseppelomb.github.io/Ronron/privacidade/" target="_blank" rel="noopener">${icon('shield')}<span class="grow">Política de privacidade</span>${icon('caret-right', 'i chev')}</a></div>`);
+    <div class="card-s reveal"><h2>Sobre</h2><p class="small muted" style="margin:0">Ronron ${__VERSAO__} · ${api.ENV.ambiente === 'staging' ? 'ambiente de testes' : 'produção'}</p></div>`);
   const rr = makeRonron($('.st-rr', s), { size: 72, pose: 'gente', base: 'gente' });
   $$('#tema button', s).forEach(b => b.onclick = () => { S.tema = b.dataset.v; LS.set('tema', S.tema); aplicarTema(); $$('#tema button', s).forEach(x => x.setAttribute('aria-pressed', x === b)); });
   $$('#modo button', s).forEach(b => b.onclick = () => { definirModo(b.dataset.v); $$('#modo button', s).forEach(x => x.setAttribute('aria-pressed', x === b)); rr.react(b.dataset.v === 'ativo' ? 'brincar' : 'bocejar'); });

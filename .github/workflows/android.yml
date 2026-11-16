@@ -27,9 +27,12 @@ jobs:
         with: { node-version: 22, cache: npm, cache-dependency-path: app/package-lock.json }
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 21 }
-      - uses: android-actions/setup-android@v3
-      - name: SDK do Android 16 (API 36)
-        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" > /dev/null
+      - name: SDK do Android 16 (API 36), com o sdkmanager que já vem no Ubuntu
+        run: |
+          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKM" --licenses > /dev/null || true
+          "$SDKM" --install "platform-tools" "platforms;android-36" "build-tools;36.0.0" > /dev/null
+          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
       - run: npm ci
       - name: Compilar a app (${{ env.AMBIENTE }})
         run: npx vite build --mode $AMBIENTE

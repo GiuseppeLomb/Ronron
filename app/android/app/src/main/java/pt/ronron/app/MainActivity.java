@@ -1,4 +1,4 @@
-package io.github.giuseppelomb.ronron;
+package pt.ronron.app;
 
 import com.getcapacitor.BridgeActivity;
 
