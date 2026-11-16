@@ -1,0 +1,48 @@
+# Compila a app Android (Capacitor) e publica um APK de teste para instalar no telemóvel.
+# Ambiente de testes (Staging) por omissão; produção só à mão, quando aprovado.
+name: App Android
+
+on:
+  push:
+    branches: [ccr-6d9a78cf-u80ufo, main]
+    paths: ['app/**', '.github/workflows/android.yml']
+  workflow_dispatch:
+    inputs:
+      ambiente:
+        description: 'staging ou production'
+        default: 'staging'
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: app } }
+    env:
+      AMBIENTE: ${{ github.event.inputs.ambiente || 'staging' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: app/package-lock.json }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+      - uses: android-actions/setup-android@v3
+      - name: SDK do Android 16 (API 36)
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" > /dev/null
+      - run: npm ci
+      - name: Compilar a app (${{ env.AMBIENTE }})
+        run: npx vite build --mode $AMBIENTE
+      - run: npx cap sync android
+      - name: APK de teste
+        working-directory: app/android
+        run: ./gradlew --no-daemon assembleDebug
+      - name: Publicar o APK para instalar no telemóvel
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          V=$(node -p "require('./package.json').version")
+          N="ronron-${V}-${AMBIENTE}-${GITHUB_RUN_NUMBER}.apk"
+          cp android/app/build/outputs/apk/debug/app-debug.apk "$N"
+          gh release create "teste-${GITHUB_RUN_NUMBER}" "$N" --prerelease --target "$GITHUB_SHA" \
+            --title "Ronron ${V} (testes ${GITHUB_RUN_NUMBER})" \
+            --notes "APK de teste (${AMBIENTE}). No telemóvel: descarrega o ficheiro .apk e abre-o; o Android pede para permitir instalar apps desta origem."

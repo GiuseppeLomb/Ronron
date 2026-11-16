@@ -1,0 +1,10 @@
+{
+  "appId": "io.github.giuseppelomb.ronron",
+  "appName": "Ronron",
+  "webDir": "dist",
+  "android": { "backgroundColor": "#F7F1E8" },
+  "plugins": {
+    "SplashScreen": { "launchShowDuration": 600, "backgroundColor": "#F7F1E8", "showSpinner": false },
+    "LocalNotifications": { "iconColor": "#E3954A" }
+  }
+}
