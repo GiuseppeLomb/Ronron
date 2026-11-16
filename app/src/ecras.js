@@ -6,7 +6,7 @@ import * as api from './api.js';
 import { S, LS, idade, art } from './state.js';
 import { hdr, rotear, carregarMe, aplicarTema, definirModo } from './main.js';
 import { abrirFicha } from './feed.js';
-import { PREF, definir, ronronar } from './som.js';
+import { PREF, definir, ronronar, Ronron, nativo as somNativo, web as somWeb, registoJS, anotar, SONS, ENV as ENVS } from './som.js';
 
 const pagina = (view, html) => { view.innerHTML = `<div class="scroll"><div class="wrap">${html}</div></div>`; const s = $('.scroll', view); cascade(s); return s; };
 const capa = a => (a.animal_photos.find(p => !p.is_video) || a.animal_photos[0]);
@@ -361,14 +361,15 @@ export function renderDefinicoes(view){
       <p class="small muted" style="margin:0">Calmo: sem saltos nem aparições espontâneas. Desligado: o Ronron fica quieto, como logo. De noite fica calmo sozinho.</p>
       <div class="sw-list">
         <button class="sw-row" role="switch" data-sw="som" aria-checked="${PREF.som}">${icon('speaker-high')}<span class="grow"><b>Som</b><small>O Ronron ronrona baixinho quando gostas de um gato. Segue o volume de multimédia.</small></span><span class="sw" aria-hidden="true"></span></button>
-        <button class="sw-row" role="switch" data-sw="vibracao" aria-checked="${PREF.vibracao}">${icon('vibrate')}<span class="grow"><b>Vibração</b><small>Pulsos leves ao ritmo do ronronar.</small></span><span class="sw" aria-hidden="true"></span></button>
+        <button class="sw-row" role="switch" data-sw="vibracao" aria-checked="${PREF.vibracao}">${icon('vibrate')}<span class="grow"><b>Vibração</b><small>Vibração suave e contínua ao ritmo do ronronar.</small></span><span class="sw" aria-hidden="true"></span></button>
       </div>
       <p class="small muted" style="margin:0">No modo Calmo há só vibração leve, sem som. Desligado: nem som nem vibração. Das 22h às 7h tudo fica mais suave.</p></div>
     ${nativo ? `<div class="card-s reveal"><h2>Notificações</h2><p class="small muted" style="margin:0">Avisamos-te quando um gato teu for aprovado.</p><div class="row-btns"><button class="btn2" id="notif">${icon('bell')}Permitir notificações</button></div></div>` : ''}
     ${S.me ? `<div class="card-s reveal"><h2>Conta</h2><button class="linkrow" id="sair2">${icon('sign-out')}<span class="grow" style="text-align:left">Terminar sessão</span></button>
       <button class="linkrow" id="apagar-conta" style="color:#B4432E">${icon('trash')}<span class="grow" style="text-align:left">Apagar a minha conta</span></button></div>` : ''}
     <div class="card-s reveal"><h2>Privacidade</h2>${linksPrivacidade()}</div>
-    <div class="card-s reveal"><a class="linkrow" href="#sobre">${icon('info')}<span class="grow">Sobre o Ronron</span>${icon('caret-right', 'i chev')}</a><p class="small muted" style="margin:0">Versão ${__VERSAO__} · ${api.ENV.ambiente === 'staging' ? 'ambiente de testes' : 'produção'}</p></div>`);
+    <div class="card-s reveal"><a class="linkrow" href="#sobre">${icon('info')}<span class="grow">Sobre o Ronron</span>${icon('caret-right', 'i chev')}</a><p class="small muted versao" style="margin:0">Versão ${__VERSAO__} · ${api.ENV.ambiente === 'staging' ? 'ambiente de testes' : 'produção'}</p></div>`);
+  cincoToques($('.versao', s));
   const rr = makeRonron($('.st-rr', s), { size: 72, pose: 'gente', base: 'gente' });
   $$('#tema button', s).forEach(b => b.onclick = () => { S.tema = b.dataset.v; LS.set('tema', S.tema); aplicarTema(); $$('#tema button', s).forEach(x => x.setAttribute('aria-pressed', x === b)); });
   $$('#modo button', s).forEach(b => b.onclick = () => { definirModo(b.dataset.v); $$('#modo button', s).forEach(x => x.setAttribute('aria-pressed', x === b)); rr.react(b.dataset.v === 'ativo' ? 'brincar' : 'bocejar'); });
@@ -405,9 +406,63 @@ export function renderSobre(view){
     <div class="card-s reveal">${linksPrivacidade()}
       <details class="creditos"><summary>Créditos e licenças</summary>
         <p class="small muted">Letras Instrument Serif e Albert Sans (SIL Open Font License 1.1). Ícones Phosphor (MIT). Sons de ronronar BigSoundBank n.º 0436 e n.º 0981, de Joseph Sardin (CC0). Capacitor, Motion e Supabase (MIT). Login Google com Capgo Social Login (MPL 2.0).</p></details>
-      <p class="small muted" style="margin:0;text-align:center">Ronron ${__VERSAO__}${api.ENV.ambiente === 'staging' ? ' · ambiente de testes' : ''}</p></div>`);
+      <p class="small muted versao" style="margin:0;text-align:center">Ronron ${__VERSAO__}${api.ENV.ambiente === 'staging' ? ' · ambiente de testes' : ''}</p></div>`);
+  cincoToques($('.versao', s));
   const rr = makeRonron($('#sobre-rr', s), { size: 150, pose: 'gente', base: 'gente' }); rr.seq([['feliz', 900], ['gente', 400]], 'gente');
   $('#sobre-rr', s).onclick = () => { rr.react('ronronar'); ronronar('curto'); };
+}
+
+// ---------------- Testes de som e vibração (escondido: 5 toques na versão) ----------------
+function cincoToques(el){ if(!el) return; let n = 0, t = 0;
+  el.addEventListener('click', () => { const a = Date.now(); n = a - t < 1500 ? n + 1 : 1; t = a; if(n >= 5){ n = 0; rotear('testes-som'); } }); }
+const NOMES_SOM = { curto: 'Curto (gosto)', medio: 'Médio', longo: 'Longo (Quero conhecer)', abrir: 'Abrir a app (forte, 3 s)' };
+const VARIANTES = [['A', 'Respiração', 'Contínua, segue o som ciclo a ciclo (forma de onda com amplitude 20-35%).'],
+                   ['B', 'Onda', 'Contínua, sobe e desce a cada 1,3 s, sempre igual.'],
+                   ['C', 'Textura', 'Tiques nativos muito leves (LOW_TICK) seguidos, mais fortes a meio de cada respiração.']];
+export function renderTestesSom(view){
+  const s = pagina(view, `<div class="reveal"><h1 class="page-title">Testes de som</h1><p class="lead" style="margin:4px 0 0">Para ver se o som chega a tocar e escolher a vibração do ronronar.</p></div>
+    ${somNativo ? '' : '<div class="card-s reveal"><p class="err-msg" style="margin:0">Estás no browser. Estes testes são para o telemóvel (som e vibração nativos).</p></div>'}
+    <div class="card-s reveal"><h2>Estado</h2><div id="ts-estado" class="ts-estado small">A ler…</div></div>
+    <div class="card-s reveal"><h2>Som com vibração</h2><p class="small muted" style="margin:0">Vibração: variante <b id="ts-var">${PREF.variante}</b>. Volume do som segue o volume de multimédia.</p>
+      <div class="ts-grid">${Object.entries(NOMES_SOM).map(([n, t]) => `<button class="btn2" data-som="${n}">${t}</button>`).join('')}
+        <button class="btn2" data-repouso>Repouso (loop, máx. 20 s)</button><button class="btn2" data-parar>Parar tudo</button></div></div>
+    <div class="card-s reveal"><h2>Só som</h2><div class="ts-grid">${Object.keys(NOMES_SOM).map(n => `<button class="btn2" data-sosom="${n}">${NOMES_SOM[n].split(' (')[0]}</button>`).join('')}</div></div>
+    <div class="card-s reveal"><h2>Vibração do ronronar</h2><p class="small muted" style="margin:0">Cada uma dura 3 s, ao ritmo do som "abrir". Escolhe a que preferes com "Usar esta".</p>
+      ${VARIANTES.map(([v, t, d]) => `<div class="ts-var"><div class="grow"><b>${v} · ${t}</b><small>${d}</small></div>
+        <div class="ts-var-b"><button class="btn2 sm" data-vib="${v}">Sentir</button><button class="btn2 sm" data-vibsom="${v}">Com som</button>
+        <button class="chip" data-usar="${v}" aria-pressed="${PREF.variante === v}">Usar esta</button></div></div>`).join('')}</div>
+    <div class="card-s reveal"><h2>Toque leve</h2><p class="small muted" style="margin:0">É o que se sente ao passar, desfazer ou num erro.</p><div class="ts-grid"><button class="btn2" data-toque="leve">Toque leve</button><button class="btn2" data-toque="medio">Toque médio (interruptores)</button></div></div>
+    <div class="card-s reveal"><h2>Comparar: som pelo WebView</h2><p class="small muted" style="margin:0">O caminho antigo (Web Audio dentro da app). Serve para provar se o problema era o WebView.</p>
+      <div class="ts-grid"><button class="btn2" data-web="curto">WebView: curto</button><button class="btn2" data-web="abrir">WebView: abrir</button></div></div>
+    <div class="card-s reveal"><h2>Registo</h2><pre class="ts-log" id="ts-log"></pre></div>`);
+  const sim = v => v ? 'sim' : 'NÃO';
+  async function atualizar(){
+    if(!$('#ts-log')) return clearInterval(tm);
+    let e = null; try{ e = somNativo ? await Ronron.estado() : null; }catch(x){ anotar('estado: ' + (x?.message || x)); }
+    const w = somWeb.estado();
+    $('#ts-estado').innerHTML = e ? `
+      <div><b>Aparelho</b> ${esc(e.aparelho)} · Android API ${e.android}</div>
+      <div><b>Volume de multimédia</b> ${e.volumeMedia}/${e.volumeMediaMax}${e.volumeMedia === 0 ? ' <span class="err-msg">(a zero!)</span>' : ''} · modo de toque: ${esc(e.modoToque)}</div>
+      <div><b>Saídas de som</b> ${esc((e.saidas || []).join(', '))}${e.musicaAtiva ? ' · há outro som a tocar' : ''}</div>
+      <div><b>Sons carregados (nativo)</b> ${Object.entries(e.sonsCarregados || {}).map(([k, v]) => `${k} ${v ? 'sim' : 'NÃO'}`).join(' · ')}</div>
+      <div><b>Última reprodução</b> ${e.ultimaReproducao ? `${esc(e.ultimaReproducao.som)}: ${e.ultimaReproducao.tocou ? 'tocou' : 'NÃO tocou'} (stream ${e.ultimaReproducao.stream})` : 'ainda nenhuma'}</div>
+      <div><b>Vibração</b> motor ${sim(e.temVibrador)} · controlo de amplitude ${sim(e.controloAmplitude)} · LOW_TICK ${sim(e.lowTick)}</div>
+      <div><b>WebView áudio</b> suportado ${sim(w.suportado)} · contexto ${esc(w.contexto)} · ${w.sons} sons descodificados</div>`
+      : `<div><b>WebView áudio</b> suportado ${sim(w.suportado)} · contexto ${esc(w.contexto)} · ${w.sons} sons descodificados</div>`;
+    $('#ts-log').textContent = [...(e?.registo || []).map(l => 'nativo  ' + l), ...registoJS.map(l => 'app     ' + l)].slice(-60).join('\n');
+  }
+  const tm = setInterval(atualizar, 1200); atualizar();
+  const n = (f, ...a) => { if(!somNativo) return anotar('só no telemóvel'); f(...a).catch(x => anotar('erro: ' + (x?.message || x))); setTimeout(atualizar, 400); };
+  const args = (som, extra = {}) => ({ som, volume: SONS[som].vol, variante: PREF.variante, env: ENVS[som], passoMs: 20, intensidade: 1, saidaMs: SONS[som].saida, ...extra });
+  $$('[data-som]', s).forEach(b => b.onclick = () => n(x => Ronron.tocar(x), args(b.dataset.som)));
+  $$('[data-sosom]', s).forEach(b => b.onclick = () => n(x => Ronron.tocar(x), args(b.dataset.sosom, { env: [] })));
+  $('[data-repouso]', s).onclick = () => n(x => Ronron.tocar(x), { som: 'repouso', volume: SONS.repouso.vol, loop: true, maxMs: 20000, fadeInMs: 1500 });
+  $('[data-parar]', s).onclick = () => { if(somNativo) n(x => Ronron.parar(x), { fadeMs: 200 }); somWeb.parar(); };
+  $$('[data-vib]', s).forEach(b => b.onclick = () => n(x => Ronron.vibrar(x), args('abrir', { variante: b.dataset.vib })));
+  $$('[data-vibsom]', s).forEach(b => b.onclick = () => n(x => Ronron.tocar(x), args('abrir', { variante: b.dataset.vibsom })));
+  $$('[data-usar]', s).forEach(b => b.onclick = () => { definir('variante', b.dataset.usar); $$('[data-usar]', s).forEach(x => x.setAttribute('aria-pressed', x === b)); $('#ts-var').textContent = b.dataset.usar; anotar('variante escolhida: ' + b.dataset.usar); });
+  $$('[data-toque]', s).forEach(b => b.onclick = () => n(x => Ronron.toque(x), { forca: b.dataset.toque }));
+  $$('[data-web]', s).forEach(b => b.onclick = () => { somWeb.tocar(b.dataset.web, SONS[b.dataset.web].vol); setTimeout(atualizar, 600); });
 }
 
 // ---------------- Apoiar (construído, desligado por omissão) ----------------

@@ -6,9 +6,9 @@ import { icon } from './icons.js';
 import { makeRonron, RR, rrMode } from './ronron.js';
 import * as api from './api.js';
 import { S, LS } from './state.js';
-import { ronronar, descansar, preparar } from './som.js';
+import { ronronar, descansar } from './som.js';
 import { renderFeed, fecharFicha, fecharMeet, badgeFavs } from './feed.js';
-import { renderFavs, renderConta, renderMeus, renderPublicar, renderAdmin, renderAjuda, renderDefinicoes, renderApoiar, renderBoasVindas, renderSobre } from './ecras.js';
+import { renderFavs, renderConta, renderMeus, renderPublicar, renderAdmin, renderAjuda, renderDefinicoes, renderApoiar, renderBoasVindas, renderSobre, renderTestesSom } from './ecras.js';
 
 export let hdr;
 
@@ -41,7 +41,7 @@ function nav(){
   const html = TABS.map(([r, t, ic]) => `<a class="tab" href="#${r}" data-r="${r}">${icon(ic)}${t}${r === 'favoritos' ? `<span class="badge fav-badge" ${S.favs.length ? '' : 'hidden'}>${S.favs.length}</span>` : ''}</a>`).join('');
   $('#nav-top').innerHTML = html; $('#nav-bottom').innerHTML = html; marcar();
 }
-function marcar(){ const r = (location.hash.slice(1) || 'feed').split('-')[0]; const base = ['publicar', 'editar'].includes(r) ? 'meus' : ['admin', 'definicoes', 'ajuda', 'apoiar', 'sobre', 'boas-vindas'].includes(r) ? 'conta' : r;
+function marcar(){ const r = (location.hash.slice(1) || 'feed').split('-')[0]; const base = ['publicar', 'editar'].includes(r) ? 'meus' : ['admin', 'definicoes', 'ajuda', 'apoiar', 'sobre', 'boas-vindas', 'testes-som'].includes(r) ? 'conta' : r;
   $$('.tab').forEach(t => t.toggleAttribute('aria-current', t.dataset.r === base)); $$('.tab[aria-current]').forEach(t => t.setAttribute('aria-current', 'page')); }
 export function rotear(r){ if(location.hash.slice(1) === r) render(); else location.hash = r; }
 async function render(){
@@ -62,6 +62,7 @@ async function render(){
   if(r === 'definicoes') return renderDefinicoes(view);
   if(r === 'apoiar') return renderApoiar(view);
   if(r === 'sobre') return renderSobre(view);
+  if(r === 'testes-som') return renderTestesSom(view);
   rotear('feed');
 }
 addEventListener('hashchange', render);
@@ -85,6 +86,9 @@ function setupRonron(){
   aplicarModo();
 }
 
+// ---------- abrir a app: o Ronron estica-se e acena enquanto ronrona ~3 s ----------
+function abrirApp(){ if(rrMode() === 'off') return; hdr.react('abrir'); ronronar('abrir', { atrasoMs: 450 }); }
+
 // ---------- entrada: o Ronron nasce do logo, espreguiça-se e acena ----------
 async function intro(){
   if(rrMode() === 'off' || reduce() || LS.get('intro-hoje', '') === new Date().toDateString()) return;
@@ -93,7 +97,7 @@ async function intro(){
   ov.innerHTML = `<div style="display:grid;justify-items:center;gap:12px"><span class="rr-bubble" id="intro-b" style="position:relative;transform-origin:50% 100%"></span><span id="intro-rr"></span></div>`;
   $('#app').appendChild(ov);
   const big = makeRonron($('#intro-rr'), { size: 200, pose: 'logo', base: 'gente', bubble: $('#intro-b') });
-  big.react('abrir'); ronronar('medio'); setTimeout(() => big.say('Olá! Encontrei-te uns amigos.', 1800), 2100);
+  big.react('abrir'); ronronar('abrir', { atrasoMs: 450 }); setTimeout(() => big.say('Olá! Encontrei-te uns amigos.', 1800), 2100);
   await wait(3900);
   const from = $('#intro-rr').getBoundingClientRect(), to = $('#logo-rr').getBoundingClientRect();
   big.pose('logo');
@@ -135,7 +139,9 @@ async function nativos(){
     // sair: um ronronar curto antes de a app ir para segundo plano
     if(rrMode() !== 'off'){ hdr.react('ronronar'); ronronar('curto'); setTimeout(() => App.minimizeApp(), 520); } else App.minimizeApp();
   });
-  App.addListener('resume', verificarAprovados);
+  // ronronar forte ao voltar à app depois de mais de 30 minutos em segundo plano
+  App.addListener('pause', () => LS.set('pausa', Date.now()));
+  App.addListener('resume', () => { verificarAprovados(); if(Date.now() - LS.get('pausa', Date.now()) > 30 * 60 * 1000) abrirApp(); });
   try{ const { SplashScreen } = await import('@capacitor/splash-screen'); SplashScreen.hide(); }catch{}
 }
 
@@ -146,8 +152,7 @@ async function nativos(){
   if(api.ENV.ambiente === 'staging'){ const t = document.createElement('div'); t.className = 'env-tag'; t.textContent = 'Testes'; document.body.appendChild(t); }
   setupRonron(); nav(); rede(); nativos();
   await carregarMe(); badgeFavs();
-  preparar();
   const vaiHaverIntro = rrMode() !== 'off' && !reduce() && LS.get('intro-hoje', '') !== new Date().toDateString();
-  if(!vaiHaverIntro && rrMode() !== 'off') setTimeout(() => { hdr.react('ronronar'); ronronar('medio'); }, 450);   // abrir a app
+  if(!vaiHaverIntro) setTimeout(abrirApp, 350);   // abrir a app (sem a entrada grande): esticão e aceno no logo + ronronar forte
   const i = intro(); render(); await i; verificarAprovados();
 })();

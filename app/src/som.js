@@ -1,92 +1,93 @@
-// Ronronar em som e vibração, ao mesmo tempo que a animação do Ronron.
-// Som: Web Audio (corta, faz fade e loop sem atrasos; sai pelo volume de multimédia do Android).
-// Vibração: Capacitor Haptics, porque o "Light" é um pulso nativo de 50 ms a ~40% da força, o mais suave que o Android dá,
-// e o navigator.vibrate não é garantido dentro do WebView nem deixa escolher a intensidade.
+// Ronronar em som e vibração, sincronizado com a animação do Ronron.
+// No Android: plugin nativo próprio (android/.../RonronPlugin.kt): som pelo canal de multimédia (SoundPool) e vibração
+// com amplitude controlada, arrancados na mesma instrução nativa. No browser: Web Audio + navigator.vibrate (só para pré-visualizar).
 // Sons: BigSoundBank #0436 "Cat purr" (reações) e #0981 "Cat purring 2" (repouso), CC0. Ver docs/CREDITOS.md.
-import { Capacitor } from '@capacitor/core';
-import { Haptics, ImpactStyle } from '@capacitor/haptics';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import { RR } from './ronron.js';
 import { LS } from './state.js';
+import ENV from './envolventes.json';
+export { ENV };
 
-const nativo = Capacitor.isNativePlatform();
-export const PREF = { som: LS.get('som', true), vibracao: LS.get('vibracao', true) };
-export function definir(k, v){ PREF[k] = v; LS.set(k, v); if(!v && k === 'som') calar(); if(!v && k === 'vibracao') pararVib(); }
+export const nativo = Capacitor.isNativePlatform();
+export const Ronron = nativo ? registerPlugin('Ronron') : null;
+export const PREF = { som: LS.get('som', true), vibracao: LS.get('vibracao', true), variante: LS.get('vib-variante', 'A') };
+export function definir(k, v){ PREF[k] = v; LS.set(k === 'variante' ? 'vib-variante' : k, v); if(k === 'som' && !v) pararTudo(); }
 
-const DUR = { curto: 600, medio: 1650, longo: 3200 };            // duração dos cortes (ms)
-const GANHO = { reacao: .45, reacaoNoite: .22, repouso: .12, repousoNoite: .06 };
+// duração (ms), fade-out do som (ms) e volume base de cada som (os ficheiros estão todos a -12 LUFS)
+export const SONS = { curto: { dur: 600, saida: 220, vol: .8 }, medio: { dur: 1650, saida: 450, vol: .85 }, longo: { dur: 3200, saida: 800, vol: .9 },
+                      abrir: { dur: 3100, saida: 1100, vol: 1 }, repouso: { dur: 6500, saida: 0, vol: .16 } };
 const nivel = () => RR.mode === 'desligado' ? 'nada' : RR.mode === 'calmo' ? 'calmo' : RR.night ? 'noite' : 'ativo';
 
-// ---------- som ----------
-let ctx = null, carregado = null; const bufs = {}, ativos = new Set();
-function contexto(){
-  if(!ctx){ const AC = window.AudioContext || window.webkitAudioContext; if(!AC) return null; ctx = new AC(); }
-  if(ctx.state === 'suspended') ctx.resume().catch(() => {});
-  return ctx;
-}
-export function preparar(){
-  if(carregado) return carregado; const c = contexto(); if(!c) return (carregado = Promise.resolve());
-  carregado = Promise.all(['curto', 'medio', 'longo', 'repouso'].map(async n => {
-    try{ const r = await fetch(`sons/ronron-${n}.ogg`); bufs[n] = await c.decodeAudioData(await r.arrayBuffer()); }catch{}
-  }));
-  return carregado;
-}
-function tocar(n, ganho, loop = false){
-  const c = contexto(), b = bufs[n]; if(!c || !b) return null;
-  const src = c.createBufferSource(), g = c.createGain(); src.buffer = b; src.loop = loop;
-  src.connect(g).connect(c.destination);
-  const t = c.currentTime; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(ganho, t + (loop ? 1.5 : .02)); src.start(t);
-  const h = { parar(f = .25){ try{ const t2 = c.currentTime; g.gain.cancelScheduledValues(t2); g.gain.setValueAtTime(g.gain.value, t2); g.gain.linearRampToValueAtTime(0, t2 + f); src.stop(t2 + f + .05); }catch{} } };
-  src.onended = () => ativos.delete(h); ativos.add(h); return h;
-}
-function calar(f = .15){ ativos.forEach(h => h.parar(f)); ativos.clear(); repouso = null; clearTimeout(repousoT); }
+// registo do lado da app (aparece no ecrã de testes)
+export const registoJS = [];
+export function anotar(t){ registoJS.push(new Date().toLocaleTimeString('pt-PT', { hour12: false }) + '  ' + t); if(registoJS.length > 40) registoJS.shift(); }
 
-// ---------- vibração em pulsos, ao ritmo de um ronronar (expira, pausa, inspira, pausa) ----------
-let vibT = null;
-function pararVib(){ clearTimeout(vibT); vibT = null; }
-function pulsar(ms, suave){
-  if(!PREF.vibracao) return; pararVib();
-  if(!nativo){ try{ if(navigator.userActivation?.hasBeenActive) navigator.vibrate?.(suave ? [20] : [30, 30, 30, 30, 30]); }catch{} return; }
-  const passo = suave ? 130 : 62, ciclo = [[560, passo], [120, 0], [420, Math.round(passo * 1.25)], [170, 0]];
-  const t0 = performance.now(), fim = t0 + ms; let fase = 0, faseFim = t0 + ciclo[0][0];
-  const tick = () => {
-    const agora = performance.now(); if(agora >= fim) return pararVib();
-    while(agora >= faseFim){ fase = (fase + 1) % ciclo.length; faseFim += ciclo[fase][0]; }
-    const p = ciclo[fase][1];
-    if(p){ Haptics.impact({ style: ImpactStyle.Light }).catch(() => {}); vibT = setTimeout(tick, p); }
-    else vibT = setTimeout(tick, faseFim - agora);
-  };
-  tick();
-}
-
-// ---------- o que a app chama ----------
-// Ronronar de reação: 'curto' (~0,5 s: gosto, tocar no Ronron, sair), 'medio' (~1,5 s: abrir a app), 'longo' (~3 s: Quero conhecer)
-export function ronronar(tipo = 'curto'){
-  const n = nivel(); if(n === 'nada') return;
+// ---------- reações ----------
+// 'curto' ~0,6 s (gosto, tocar no Ronron, sair) · 'medio' ~1,6 s · 'longo' ~3,2 s (Quero conhecer) · 'abrir' ~3 s (abrir a app)
+export function ronronar(tipo = 'curto', { atrasoMs = 0, variante, forcarSom = false } = {}){
+  const n = nivel(); if(n === 'nada' && !forcarSom) return;
+  const som = (PREF.som && n !== 'calmo') || forcarSom, vib = PREF.vibracao;
+  if(!som && !vib) return;
   pararRepouso();
-  if(PREF.som && n !== 'calmo') preparar().then(() => tocar(tipo, n === 'noite' ? GANHO.reacaoNoite : GANHO.reacao));
-  const suave = n === 'calmo' || n === 'noite';
-  pulsar(suave ? Math.min(DUR[tipo], 700) : DUR[tipo], suave);
+  const s = SONS[tipo], suave = n === 'calmo' || n === 'noite';
+  const args = { som: tipo, volume: s.vol * (n === 'noite' ? .5 : 1), variante: variante || PREF.variante, env: vib ? ENV[tipo] : [],
+                 passoMs: 20, intensidade: suave ? .6 : 1, saidaMs: s.saida };
+  const vai = () => {
+    if(nativo){
+      (som ? Ronron.tocar(args) : Ronron.vibrar(args))
+        .then(r => anotar(`${tipo}: ${som ? (r?.tocou ? 'som a tocar' : 'som NÃO tocou') : 'só vibração'}${vib ? ' + vibração ' + args.variante : ''}`))
+        .catch(e => anotar(`${tipo}: erro ${e?.message || e}`));
+    } else { if(som) web.tocar(tipo, args.volume); if(vib) web.vibrar(s.dur); }
+  };
+  atrasoMs ? setTimeout(vai, atrasoMs) : vai();
 }
-// Passar, desfazer, erro: só um toque leve, sem som
-export function toque(){
-  if(nivel() === 'nada' || !PREF.vibracao) return;
-  if(nativo) Haptics.impact({ style: ImpactStyle.Light }).catch(() => {}); else try{ if(navigator.userActivation?.hasBeenActive) navigator.vibrate?.(12); }catch{}
-}
-// Repouso: loop muito baixo enquanto o Ronron dorme ou espera. No máximo 20 s; para à primeira interação.
-let repouso = null, repousoT = null, repousoFeito = false;
-export function descansar(){
-  const n = nivel(); if(!PREF.som || (n !== 'ativo' && n !== 'noite') || repouso || repousoFeito || document.hidden) return;
-  repousoFeito = true;
-  preparar().then(() => {
-    if(repouso || document.hidden) return;
-    repouso = tocar('repouso', n === 'noite' ? GANHO.repousoNoite : GANHO.repouso, true); if(!repouso) return;
-    repousoT = setTimeout(() => pararRepouso(2.5), 20000);
-  });
-}
-export function pararRepouso(f = .4){ clearTimeout(repousoT); if(repouso){ repouso.parar(f); repouso = null; } }
 
-['pointerdown', 'keydown'].forEach(ev => addEventListener(ev, () => { pararRepouso(); repousoFeito = false; }, { passive: true, capture: true }));
-document.addEventListener('visibilitychange', () => {
-  if(document.hidden){ calar(.05); pararVib(); ctx?.suspend?.().catch(() => {}); }
-  else ctx?.resume?.().catch(() => {});
-});
+// ---------- toque único muito leve (passar, desfazer, erro, interruptores) ----------
+export function toque(forca = 'leve'){
+  if(nivel() === 'nada' || !PREF.vibracao) return;
+  if(nativo) Ronron.toque({ forca }).catch(() => {}); else web.toque();
+}
+
+// ---------- repouso: loop muito baixo enquanto o Ronron dorme ou espera; máximo 20 s; para à primeira interação ----------
+let emRepouso = false, repousoFeito = false;
+export function descansar(){
+  const n = nivel(); if(!PREF.som || (n !== 'ativo' && n !== 'noite') || emRepouso || repousoFeito || document.hidden) return;
+  repousoFeito = true; emRepouso = true;
+  const vol = SONS.repouso.vol * (n === 'noite' ? .5 : 1);
+  if(nativo) Ronron.tocar({ som: 'repouso', volume: vol, loop: true, maxMs: 20000, fadeInMs: 1500 }).then(r => anotar('repouso: ' + (r?.tocou ? 'a tocar' : 'NÃO tocou'))).catch(() => {});
+  else web.repouso(vol);
+  setTimeout(() => { emRepouso = false; }, 22500);
+}
+export function pararRepouso(){
+  if(!emRepouso) return; emRepouso = false;
+  if(nativo) Ronron.parar({ som: 'repouso', fadeMs: 400, vibracao: false }).catch(() => {}); else web.parar();
+}
+export function pararTudo(){ emRepouso = false; if(nativo) Ronron.parar({ fadeMs: 150 }).catch(() => {}); else web.parar(); }
+
+addEventListener('pointerdown', () => { pararRepouso(); repousoFeito = false; }, { passive: true, capture: true });
+addEventListener('keydown', () => { pararRepouso(); repousoFeito = false; }, { capture: true });
+document.addEventListener('visibilitychange', () => { if(document.hidden) pararTudo(); });
+
+// ---------- browser (pré-visualização no PC; no Android usa-se o plugin nativo) ----------
+export const web = (() => {
+  let ctx = null, pronto = null, loop = null; const bufs = {};
+  const contexto = () => { if(!ctx){ const AC = window.AudioContext || window.webkitAudioContext; if(!AC) return null; ctx = new AC(); } if(ctx.state === 'suspended') ctx.resume().catch(() => {}); return ctx; };
+  const preparar = () => pronto || (pronto = Promise.all(Object.keys(SONS).map(async n => {
+    try{ const c = contexto(); bufs[n] = await c.decodeAudioData(await (await fetch(`sons/ronron-${n}.ogg`)).arrayBuffer()); }catch(e){ anotar(`WebView: não descodificou ${n} (${e?.message || e})`); }
+  })));
+  const tocar = (n, v, emLoop = false) => preparar().then(() => {
+    const c = contexto(), b = bufs[n]; if(!c || !b) return null;
+    const src = c.createBufferSource(), g = c.createGain(); src.buffer = b; src.loop = emLoop; src.connect(g).connect(c.destination);
+    const t = c.currentTime; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + (emLoop ? 1.5 : .02)); src.start(t);
+    anotar(`WebView: ${n} (contexto ${c.state})`);
+    return { parar(f = .3){ try{ const t2 = c.currentTime; g.gain.cancelScheduledValues(t2); g.gain.setValueAtTime(g.gain.value, t2); g.gain.linearRampToValueAtTime(0, t2 + f); src.stop(t2 + f + .05); }catch{} } };
+  });
+  return {
+    estado: () => ({ suportado: !!(window.AudioContext || window.webkitAudioContext), contexto: ctx?.state || 'por criar', sons: Object.keys(bufs).length }),
+    tocar: (n, v) => tocar(n, v),
+    repouso: v => tocar('repouso', v, true).then(h => { loop = h; setTimeout(() => { if(loop === h){ h?.parar(2.5); loop = null; } }, 20000); }),
+    parar: () => { loop?.parar(.4); loop = null; },
+    vibrar: ms => { try{ if(navigator.userActivation?.hasBeenActive) navigator.vibrate?.([Math.min(ms, 400)]); }catch{} },
+    toque: () => { try{ if(navigator.userActivation?.hasBeenActive) navigator.vibrate?.(8); }catch{} },
+  };
+})();

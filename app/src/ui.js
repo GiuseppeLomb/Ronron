@@ -25,7 +25,7 @@ export function toast(txt, ic = 'heart'){
 }
 export async function vibrar(forte = false){
   if(!PREF.vibracao || RR.mode === 'desligado') return;
-  try{ if(nativo) await Haptics.impact({ style: forte ? ImpactStyle.Medium : ImpactStyle.Light }); else navigator.vibrate?.(forte ? [10, 40, 14] : 10); }catch{}
+  toque(forte ? 'medio' : 'leve');   // toque nativo muito leve (LOW_TICK), nunca o padrão de notificação
 }
 
 const ERROS = [
