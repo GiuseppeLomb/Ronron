@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ronron · Apagar a conta</title>
+<meta name="description" content="Como apagar a tua conta Ronron e todos os teus dados, com ou sem a app.">
+<meta name="referrer" content="no-referrer">
+<link rel="icon" href="../paginas/ronron.svg">
+<link rel="stylesheet" href="../paginas/estilo.css">
+</head>
+<body>
+<main>
+<header><img src="../paginas/ronron.svg" alt="" width="44" height="40"><b>Ronron</b></header>
+<h1>Apagar a tua conta Ronron</h1>
+<p>Quando apagas a conta, apagamos de imediato e para sempre: o perfil, o email e o WhatsApp, os gatos que publicaste e as fotografias, os teus favoritos e gostos, os pedidos de contacto e as denúncias que fizeste. Não fica nenhuma cópia, exceto registos técnicos do servidor, que desaparecem sozinhos ao fim de poucos dias.</p>
+
+<h2>Na app (mais rápido)</h2>
+<p>Abre o Ronron → <b>Conta</b> → <b>Definições</b> → <b>Apagar a minha conta</b> → escreve APAGAR.</p>
+
+<h2>Sem a app, aqui</h2>
+<div class="card" id="entrar">
+  <p style="margin:0">Inicia sessão com a mesma conta que usas no Ronron. Só servimos para confirmar que a conta é tua.</p>
+  <div id="captcha"></div>
+  <button class="btn" id="g">Entrar com o Google</button>
+  <div class="ou">ou com email</div>
+  <form id="f" novalidate style="display:grid;gap:12px">
+    <label>Email<input name="email" type="email" autocomplete="email" required></label>
+    <label>Palavra-passe<input name="pass" type="password" autocomplete="current-password" required></label>
+    <button class="btn primary">Entrar</button>
+  </form>
+  <p class="err" id="err" role="alert" hidden></p>
+</div>
+<div class="card" id="apagar" hidden>
+  <p style="margin:0">Sessão iniciada como <b id="quem"></b>.</p>
+  <label>Para confirmar, escreve APAGAR<input id="conf" autocomplete="off" maxlength="10"></label>
+  <button class="btn danger" id="apagar-btn">Apagar a conta e todos os dados</button>
+  <button class="btn" id="sair">Cancelar e terminar sessão</button>
+  <p class="err" id="err2" role="alert" hidden></p>
+</div>
+<div class="card" id="feito" hidden><p class="ok" style="margin:0"><b>Conta apagada.</b> Obrigado por teres ajudado os gatos de rua.</p></div>
+
+<h2>Já não consegues entrar?</h2>
+<p>Se te esqueceste da palavra-passe ou perdeste o acesso à conta Google, escreve para <b>[A PREENCHER: email de contacto]</b> a partir do email da conta, com o assunto "Apagar conta Ronron". Apagamos a conta no prazo de 30 dias e respondemos a confirmar.</p>
+<p class="muted"><a href="../privacidade/">Política de privacidade</a></p>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/dist/umd/supabase.js"></script>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer onload="montarCaptcha()"></script>
+<script>
+const URL_SB = 'https://ylsspcbznrtcvdcfozov.supabase.co', CHAVE = 'sb_publishable_6kEr7KwxN0bCmI7SWaF95A_O_KvVelr', TURNSTILE = '0x4AAAAAAGCcxLDz5Gd-ix3G';
+const sb = supabase.createClient(URL_SB, CHAVE, { auth: { flowType: 'pkce', detectSessionInUrl: true, persistSession: true, storageKey: 'ronron.web' } });
+const $ = s => document.querySelector(s);
+let captcha = null, cid = null;
+function montarCaptcha(){ try{ cid = turnstile.render('#captcha', { sitekey: TURNSTILE, language: 'pt-PT', callback: t => captcha = t, 'expired-callback': () => captcha = null }); }catch{} }
+const erro = (el, t) => { el.textContent = t; el.hidden = !t; };
+const pt = e => { const m = String(e?.message || e || '');
+  if(/invalid login credentials/i.test(m)) return 'Email ou palavra-passe errados.';
+  if(/captcha/i.test(m)) return 'A verificação anti-robô falhou. Tenta outra vez.';
+  if(/fetch|network|load failed/i.test(m)) return 'Não consegui ligar ao servidor. Verifica a ligação.';
+  if(/ronron_conta_existente|database error/i.test(m)) return 'Este email tem conta criada com palavra-passe. Entra com o email e a palavra-passe.';
+  return 'Algo correu mal. Tenta outra vez daqui a pouco.'; };
+async function mostrar(){
+  const { data: { session } } = await sb.auth.getSession();
+  $('#entrar').hidden = !!session; $('#apagar').hidden = !session;
+  if(session) $('#quem').textContent = session.user.email || 'a tua conta';
+}
+$('#g').onclick = async () => {
+  erro($('#err'), '');
+  const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname, queryParams: { prompt: 'select_account' } } });
+  if(error) erro($('#err'), pt(error));
+};
+$('#f').onsubmit = async e => { e.preventDefault(); erro($('#err'), '');
+  const f = e.target; if(!f.email.value || !f.pass.value) return erro($('#err'), 'Preenche o email e a palavra-passe.');
+  if(!captcha) return erro($('#err'), 'Confirma primeiro a verificação anti-robô.');
+  const b = f.querySelector('button'); b.disabled = true;
+  const { error } = await sb.auth.signInWithPassword({ email: f.email.value.trim(), password: f.pass.value, options: { captchaToken: captcha } });
+  b.disabled = false; captcha = null; try{ turnstile.reset(cid); }catch{}
+  if(error) return erro($('#err'), pt(error)); f.reset(); mostrar(); };
+$('#sair').onclick = async () => { await sb.auth.signOut(); mostrar(); };
+$('#apagar-btn').onclick = async () => { const er = $('#err2'); erro(er, '');
+  if($('#conf').value.trim().toUpperCase() !== 'APAGAR') return erro(er, 'Escreve APAGAR para confirmar.');
+  const b = $('#apagar-btn'); b.disabled = true; b.textContent = 'A apagar…';
+  try{
+    const { data: { user } } = await sb.auth.getUser(); const uid = user.id;
+    const { data: meus } = await sb.from('animals').select('id').eq('owner_id', uid);
+    for(const a of meus || []){ const { data: fs } = await sb.storage.from('animal-photos').list(`${uid}/${a.id}`);
+      if(fs?.length) await sb.storage.from('animal-photos').remove(fs.map(x => `${uid}/${a.id}/${x.name}`)); }
+    const { error } = await sb.rpc('apagar_conta'); if(error) throw error;
+    await sb.auth.signOut({ scope: 'local' });
+    $('#apagar').hidden = true; $('#feito').hidden = false;
+  }catch(e){ b.disabled = false; b.textContent = 'Apagar a conta e todos os dados'; erro(er, pt(e)); }
+};
+sb.auth.onAuthStateChange(() => mostrar());
+mostrar();
+</script>
+</body>
+</html>
