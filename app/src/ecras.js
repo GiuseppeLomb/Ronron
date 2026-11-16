@@ -6,6 +6,7 @@ import * as api from './api.js';
 import { S, LS, idade, art } from './state.js';
 import { hdr, rotear, carregarMe, aplicarTema, definirModo } from './main.js';
 import { abrirFicha } from './feed.js';
+import { PREF, definir, ronronar } from './som.js';
 
 const pagina = (view, html) => { view.innerHTML = `<div class="scroll"><div class="wrap">${html}</div></div>`; const s = $('.scroll', view); cascade(s); return s; };
 const capa = a => (a.animal_photos.find(p => !p.is_video) || a.animal_photos[0]);
@@ -169,6 +170,7 @@ async function perfil(view){
       ${p.is_admin ? `<a class="linkrow" href="#admin">${icon('list-checks')}<span class="grow">Administração</span>${icon('caret-right', 'i chev')}</a>` : ''}
       <a class="linkrow" href="#definicoes">${icon('gear')}<span class="grow">Definições</span>${icon('caret-right', 'i chev')}</a>
       <a class="linkrow" href="#ajuda">${icon('question')}<span class="grow">Ajuda e FeLV</span>${icon('caret-right', 'i chev')}</a>
+      <a class="linkrow" href="#sobre">${icon('info')}<span class="grow">Sobre o Ronron</span>${icon('caret-right', 'i chev')}</a>
       ${api.ENV.doacoes ? `<a class="linkrow" href="#apoiar">${icon('hand-heart')}<span class="grow">Apoiar</span>${icon('caret-right', 'i chev')}</a>` : ''}
       <button class="linkrow" id="sair">${icon('sign-out')}<span class="grow" style="text-align:left">Terminar sessão</span></button>
     </div>`);
@@ -356,15 +358,22 @@ export function renderDefinicoes(view){
   const s = pagina(view, `<div class="reveal"><h1 class="page-title">Definições</h1></div>
     <div class="card-s reveal"><h2>Aparência</h2><div class="field"><span>Tema</span><div class="seg" id="tema">${[['claro', 'Claro'], ['escuro', 'Escuro'], ['auto', 'Automático']].map(([v, t]) => `<button data-v="${v}" aria-pressed="${S.tema === v}">${t}</button>`).join('')}</div></div></div>
     <div class="card-s reveal"><h2>Ronron</h2><div style="display:flex;gap:16px;align-items:center"><span class="st-rr"></span><div class="seg" id="modo" style="flex:1">${[['ativo', 'Ativo'], ['calmo', 'Calmo'], ['desligado', 'Desligado']].map(([v, t]) => `<button data-v="${v}" aria-pressed="${RR.mode === v}">${t}</button>`).join('')}</div></div>
-      <p class="small muted" style="margin:0">Calmo: sem saltos nem aparições espontâneas. Desligado: o Ronron fica quieto, como logo. De noite fica calmo sozinho.</p></div>
+      <p class="small muted" style="margin:0">Calmo: sem saltos nem aparições espontâneas. Desligado: o Ronron fica quieto, como logo. De noite fica calmo sozinho.</p>
+      <div class="sw-list">
+        <button class="sw-row" role="switch" data-sw="som" aria-checked="${PREF.som}">${icon('speaker-high')}<span class="grow"><b>Som</b><small>O Ronron ronrona baixinho quando gostas de um gato. Segue o volume de multimédia.</small></span><span class="sw" aria-hidden="true"></span></button>
+        <button class="sw-row" role="switch" data-sw="vibracao" aria-checked="${PREF.vibracao}">${icon('vibrate')}<span class="grow"><b>Vibração</b><small>Pulsos leves ao ritmo do ronronar.</small></span><span class="sw" aria-hidden="true"></span></button>
+      </div>
+      <p class="small muted" style="margin:0">No modo Calmo há só vibração leve, sem som. Desligado: nem som nem vibração. Das 22h às 7h tudo fica mais suave.</p></div>
     ${nativo ? `<div class="card-s reveal"><h2>Notificações</h2><p class="small muted" style="margin:0">Avisamos-te quando um gato teu for aprovado.</p><div class="row-btns"><button class="btn2" id="notif">${icon('bell')}Permitir notificações</button></div></div>` : ''}
     ${S.me ? `<div class="card-s reveal"><h2>Conta</h2><button class="linkrow" id="sair2">${icon('sign-out')}<span class="grow" style="text-align:left">Terminar sessão</span></button>
       <button class="linkrow" id="apagar-conta" style="color:#B4432E">${icon('trash')}<span class="grow" style="text-align:left">Apagar a minha conta</span></button></div>` : ''}
     <div class="card-s reveal"><h2>Privacidade</h2>${linksPrivacidade()}</div>
-    <div class="card-s reveal"><h2>Sobre</h2><p class="small muted" style="margin:0">Ronron ${__VERSAO__} · ${api.ENV.ambiente === 'staging' ? 'ambiente de testes' : 'produção'}</p></div>`);
+    <div class="card-s reveal"><a class="linkrow" href="#sobre">${icon('info')}<span class="grow">Sobre o Ronron</span>${icon('caret-right', 'i chev')}</a><p class="small muted" style="margin:0">Versão ${__VERSAO__} · ${api.ENV.ambiente === 'staging' ? 'ambiente de testes' : 'produção'}</p></div>`);
   const rr = makeRonron($('.st-rr', s), { size: 72, pose: 'gente', base: 'gente' });
   $$('#tema button', s).forEach(b => b.onclick = () => { S.tema = b.dataset.v; LS.set('tema', S.tema); aplicarTema(); $$('#tema button', s).forEach(x => x.setAttribute('aria-pressed', x === b)); });
   $$('#modo button', s).forEach(b => b.onclick = () => { definirModo(b.dataset.v); $$('#modo button', s).forEach(x => x.setAttribute('aria-pressed', x === b)); rr.react(b.dataset.v === 'ativo' ? 'brincar' : 'bocejar'); });
+  $$('[data-sw]', s).forEach(b => b.onclick = () => { const k = b.dataset.sw, v = b.getAttribute('aria-checked') !== 'true';
+    definir(k, v); b.setAttribute('aria-checked', v); if(v){ rr.react('ronronar'); ronronar('curto'); } });
   $('#notif', s)?.addEventListener('click', async () => { const { LocalNotifications } = await import('@capacitor/local-notifications'); const p = await LocalNotifications.requestPermissions(); toast(p.display === 'granted' ? 'Notificações ligadas' : 'Notificações desligadas', 'bell'); });
   $('#sair2', s)?.addEventListener('click', async () => { await api.sairGoogle(); await api.sb.auth.signOut(); S.me = null; rotear('feed'); });
   $('#apagar-conta', s)?.addEventListener('click', async () => {
@@ -373,6 +382,32 @@ export function renderDefinicoes(view){
     try{ await api.apagarConta(S.me.user.id); S.me = null; LS.set('favs', []); S.favs = []; hdr.seq([['triste', 1600]], 'logo'); toast('Conta apagada. Obrigado por teres passado por cá.', 'check'); rotear('feed'); }
     catch(e){ toast(erroPT(e), 'warning'); }
   });
+}
+
+// ---------------- Sobre ----------------
+export function renderSobre(view){
+  const s = pagina(view, `<div class="reveal center sobre-top"><button class="st-rr" id="sobre-rr" aria-label="Fazer festas ao Ronron"></button>
+      <h1 class="page-title" style="margin:0">Ronron</h1><p class="disp sobre-lema">Dá swipe. Dá um lar.</p></div>
+    <div class="card-s reveal">
+      <p style="margin:0">O Ronron é uma app gratuita e sem fins lucrativos que ajuda gatos de rua a encontrar casa em Portugal.</p>
+      <p style="margin:0">Quem cuida de gatos de rua publica-os com fotos e uma pequena história. Quem quer adotar conhece-os um a um e, quando encontra o seu, fala diretamente com quem cuida dele. Sem intermediários, sem custos.</p></div>
+    <div class="card-s reveal"><h2>A nossa missão</h2>
+      <p style="margin:0">Dar a cada gato de rua a oportunidade de ser visto, conhecido e amado. Acreditamos que adotar deve ser simples, seguro e sempre gratuito, e que quem cuida dos gatos da sua rua merece ferramentas à altura do seu esforço.</p></div>
+    <div class="card-s reveal"><h2>O que nos guia</h2>
+      <ul class="guia">
+        <li>${icon('hand-heart')}<span>A adoção é sempre gratuita. Vender animais não é permitido.</span></li>
+        <li>${icon('seal-check')}<span>Cada anúncio é revisto antes de aparecer.</span></li>
+        <li>${icon('shield-check')}<span>Os teus dados são protegidos e o teu contacto só é visto por quem tem conta.</span></li>
+        <li>${icon('prohibit')}<span>O Ronron não tem publicidade nem fins lucrativos.</span></li>
+      </ul></div>
+    <div class="card-s reveal"><h2>Em breve</h2>
+      <p style="margin:0">Vamos juntar-nos a uma associação de proteção animal. Os donativos vão ajudar a manter a app e o resto irá para cuidados veterinários dos gatos, com as contas sempre à vista.</p></div>
+    <div class="card-s reveal">${linksPrivacidade()}
+      <details class="creditos"><summary>Créditos e licenças</summary>
+        <p class="small muted">Letras Instrument Serif e Albert Sans (SIL Open Font License 1.1). Ícones Phosphor (MIT). Sons de ronronar BigSoundBank n.º 0436 e n.º 0981, de Joseph Sardin (CC0). Capacitor, Motion e Supabase (MIT). Login Google com Capgo Social Login (MPL 2.0).</p></details>
+      <p class="small muted" style="margin:0;text-align:center">Ronron ${__VERSAO__}${api.ENV.ambiente === 'staging' ? ' · ambiente de testes' : ''}</p></div>`);
+  const rr = makeRonron($('#sobre-rr', s), { size: 150, pose: 'gente', base: 'gente' }); rr.seq([['feliz', 900], ['gente', 400]], 'gente');
+  $('#sobre-rr', s).onclick = () => { rr.react('ronronar'); ronronar('curto'); };
 }
 
 // ---------------- Apoiar (construído, desligado por omissão) ----------------

@@ -1,5 +1,7 @@
 // Utilitários de interface: animação, avisos, diálogos, erros em PT-PT e recursos nativos (Capacitor)
 import { animate } from 'motion';
+import { PREF, toque } from './som.js';
+import { RR } from './ronron.js';
 import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { Share } from '@capacitor/share';
@@ -16,12 +18,13 @@ const done = a => Promise.resolve(a).then(() => {}, () => {});
 export const go = (el, kf, op) => ({ finished: (!reduce() && el) ? done(animate(el, kf, op)) : Promise.resolve() });
 
 export function toast(txt, ic = 'heart'){
-  $$('.toast').forEach(x => x.remove());
+  $$('.toast').forEach(x => x.remove()); if(ic === 'warning') toque();
   const d = document.createElement('div'); d.className = 'toast'; d.setAttribute('role', 'status'); d.innerHTML = icon(ic) + esc(txt);
   $('#app').appendChild(d); go(d, { opacity: [0, 1], y: [-10, 0] }, { type: 'spring', stiffness: 300, damping: 22 });
   setTimeout(() => go(d, { opacity: 0 }, { duration: .3 }).finished.then(() => d.remove()), 2600);
 }
 export async function vibrar(forte = false){
+  if(!PREF.vibracao || RR.mode === 'desligado') return;
   try{ if(nativo) await Haptics.impact({ style: forte ? ImpactStyle.Medium : ImpactStyle.Light }); else navigator.vibrate?.(forte ? [10, 40, 14] : 10); }catch{}
 }
 
