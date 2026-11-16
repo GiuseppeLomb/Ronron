@@ -86,8 +86,9 @@ function setupRonron(){
   aplicarModo();
 }
 
-// ---------- abrir a app: o Ronron estica-se e acena enquanto ronrona ~3 s ----------
-function abrirApp(){ if(rrMode() === 'off') return; hdr.react('abrir'); ronronar('abrir', { atrasoMs: 450 }); }
+// ---------- abrir a app: o Ronron acena enquanto ronrona ~1,5 s ----------
+// o ronronar (~1,5 s) começa com o aceno
+function abrirApp(){ if(rrMode() === 'off') return; hdr.seq([['espreitar', 300], ['acenar', 1100], ['feliz', 500]], 'logo'); ronronar('abrir', { atrasoMs: 300 }); }
 
 // ---------- entrada: o Ronron nasce do logo, espreguiça-se e acena ----------
 async function intro(){
@@ -97,7 +98,7 @@ async function intro(){
   ov.innerHTML = `<div style="display:grid;justify-items:center;gap:12px"><span class="rr-bubble" id="intro-b" style="position:relative;transform-origin:50% 100%"></span><span id="intro-rr"></span></div>`;
   $('#app').appendChild(ov);
   const big = makeRonron($('#intro-rr'), { size: 200, pose: 'logo', base: 'gente', bubble: $('#intro-b') });
-  big.react('abrir'); ronronar('abrir', { atrasoMs: 450 }); setTimeout(() => big.say('Olá! Encontrei-te uns amigos.', 1800), 2100);
+  big.react('abrir'); ronronar('abrir', { atrasoMs: 2150 });   // na entrada grande o aceno começa aos 2,15 s setTimeout(() => big.say('Olá! Encontrei-te uns amigos.', 1800), 2100);
   await wait(3900);
   const from = $('#intro-rr').getBoundingClientRect(), to = $('#logo-rr').getBoundingClientRect();
   big.pose('logo');

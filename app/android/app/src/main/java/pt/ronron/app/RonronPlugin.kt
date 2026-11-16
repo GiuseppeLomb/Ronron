@@ -5,6 +5,7 @@ import android.content.res.AssetFileDescriptor
 import android.media.AudioAttributes
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
+import android.media.MediaPlayer
 import android.media.SoundPool
 import android.os.Build
 import android.os.Handler
@@ -37,7 +38,12 @@ import kotlin.math.roundToInt
  */
 @CapacitorPlugin(name = "Ronron")
 class RonronPlugin : Plugin() {
-    private val nomes = listOf("curto", "medio", "longo", "abrir", "repouso")
+    // 3 versões de cada som ("" = atual, -a1 = altifalante sopro, -a2 = altifalante garganta) + bip de diagnóstico
+    private val nomes = listOf("curto", "medio", "longo", "abrir", "repouso").flatMap { listOf(it, "$it-a1", "$it-a2") } + "bip"
+    // canal de multimédia (STREAM_MUSIC); sem pedir foco de áudio, por isso o sistema não baixa este som
+    private val atrib: AudioAttributes = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
+        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build()
+    private var ultimoVolumeApp = -1f
     private lateinit var pool: SoundPool
     private val ids = HashMap<String, Int>()
     private val prontos = HashSet<Int>()
@@ -56,10 +62,7 @@ class RonronPlugin : Plugin() {
             (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
         else @Suppress("DEPRECATION") (context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator)
 
-        pool = SoundPool.Builder().setMaxStreams(4).setAudioAttributes(
-            AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
-        ).build()
+        pool = SoundPool.Builder().setMaxStreams(4).setAudioAttributes(atrib).build()
         pool.setOnLoadCompleteListener { _, id, estado ->
             if (estado == 0) prontos.add(id)
             anotar("som ${ids.entries.firstOrNull { it.value == id }?.key ?: id} carregado (estado $estado)")
@@ -111,12 +114,27 @@ class RonronPlugin : Plugin() {
                 if (loop) h.postDelayed({ pararStream(stream, 2500) }, maxMs)
             }
         }
-        res.put("stream", stream); res.put("tocou", stream != 0)
+        res.put("stream", stream); res.put("tocou", stream != 0); res.put("volumeApp", vol.toDouble()); res.put("motor", "SoundPool")
+        ultimoVolumeApp = vol
         anotar("tocar $nome vol=${"%.2f".format(vol)} → ${if (stream != 0) "a tocar (stream $stream)" else "NÃO tocou"} · volume multimédia ${res.getInteger("volumeMedia")}/${res.getInteger("volumeMediaMax")}")
         // vibração arranca na mesma instrução que o som
         call.getArray("env")?.let { env -> if (env.length() > 0) vibrarEnvolvente(call, env) }
         res.put("t", SystemClock.uptimeMillis()); ultimaReproducao = res
         call.resolve(res)
+    }
+
+    /** Bip pelo MediaPlayer nativo (mesmos AudioAttributes), para isolar o SoundPool no diagnóstico. */
+    @PluginMethod
+    fun bipMediaPlayer(call: PluginCall) {
+        try {
+            val fd = context.assets.openFd("public/sons/ronron-bip.ogg")
+            val mp = MediaPlayer(); mp.setAudioAttributes(atrib)
+            mp.setDataSource(fd.fileDescriptor, fd.startOffset, fd.length); fd.close()
+            mp.setOnCompletionListener { it.release() }; mp.prepare(); mp.setVolume(1f, 1f); mp.start()
+            ultimoVolumeApp = 1f
+            anotar("bip MediaPlayer vol=1.00 → a tocar · volume multimédia ${audio.getStreamVolume(AudioManager.STREAM_MUSIC)}/${audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)}")
+            call.resolve(JSObject().put("tocou", true).put("motor", "MediaPlayer"))
+        } catch (e: Exception) { anotar("bip MediaPlayer ERRO: ${e.message}"); call.reject(e.message) }
     }
 
     private fun pararStream(s: Int, ms: Long) { if (!ativos.containsKey(s)) return; volumeEm(s, 0f, ms) { pool.stop(s); ativos.remove(s); nomeDe.remove(s) } }
@@ -152,7 +170,7 @@ class RonronPlugin : Plugin() {
         val forca = (call.getDouble("intensidade") ?: 1.0).coerceIn(0.1, 1.0)
         val atraso = (call.getInt("atrasoMs") ?: 0).toLong()
         val saida = (call.getInt("saidaMs") ?: 160).toDouble()   // a vibração apaga-se com o fade-out do som
-        val lo = 0.20 * forca; val hi = 0.35 * forca             // 20-35% da força do motor
+        val lo = 0.24 * forca; val hi = 0.42 * forca             // 24-42% da força do motor (+20%)
         val dur = env.size * passo
         val efeito: VibrationEffect? = when {
             variante == "C" && lowTickOk() -> {
@@ -160,7 +178,7 @@ class RonronPlugin : Plugin() {
                 while (t < dur) {
                     val e = env[min(env.size - 1, (t / passo).toInt())]
                     val r = min(1.0, (dur - t) / saida)
-                    c.addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, ((0.18 + 0.55 * e * forca) * r).toFloat().coerceIn(0.05f, 1f), if (t == 0L) 0 else pausa)
+                    c.addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, ((0.22 + 0.66 * e * forca) * r).toFloat().coerceIn(0.05f, 1f), if (t == 0L) 0 else pausa)
                     t += pausa
                 }
                 c.compose()
@@ -221,6 +239,11 @@ class RonronPlugin : Plugin() {
         val r = JSObject()
         r.put("aparelho", "${Build.MANUFACTURER} ${Build.MODEL}"); r.put("android", Build.VERSION.SDK_INT)
         r.put("volumeMedia", audio.getStreamVolume(AudioManager.STREAM_MUSIC)); r.put("volumeMediaMax", audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC))
+        r.put("plugin", "RonronPlugin (Kotlin) · SoundPool")
+        r.put("atributos", "usage MEDIA · contentType MUSIC · sem foco de áudio (o sistema não baixa o som)")
+        r.put("stream", when (atrib.volumeControlStream) { AudioManager.STREAM_MUSIC -> "STREAM_MUSIC"; AudioManager.STREAM_NOTIFICATION -> "STREAM_NOTIFICATION"; else -> "stream ${atrib.volumeControlStream}" })
+        r.put("volumeApp", if (ultimoVolumeApp < 0) "ainda nenhum" else "%.2f".format(ultimoVolumeApp))
+        if (Build.VERSION.SDK_INT >= 28) r.put("volumeMediaDb", "%.1f dB".format(audio.getStreamVolumeDb(AudioManager.STREAM_MUSIC, audio.getStreamVolume(AudioManager.STREAM_MUSIC), AudioDeviceInfo.TYPE_BUILTIN_SPEAKER)))
         r.put("modoToque", when (audio.ringerMode) { AudioManager.RINGER_MODE_SILENT -> "silêncio"; AudioManager.RINGER_MODE_VIBRATE -> "vibrar"; else -> "normal" })
         r.put("musicaAtiva", audio.isMusicActive)
         val saidas = audio.getDevices(AudioManager.GET_DEVICES_OUTPUTS).map { when (it.type) {
