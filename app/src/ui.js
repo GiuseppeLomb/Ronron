@@ -3,7 +3,6 @@ import { animate } from 'motion';
 import { PREF, toque } from './som.js';
 import { RR } from './ronron.js';
 import { Capacitor } from '@capacitor/core';
-import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { Share } from '@capacitor/share';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { icon } from './icons.js';

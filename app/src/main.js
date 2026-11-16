@@ -8,7 +8,7 @@ import * as api from './api.js';
 import { S, LS } from './state.js';
 import { ronronar, descansar } from './som.js';
 import { renderFeed, fecharFicha, fecharMeet, badgeFavs } from './feed.js';
-import { renderFavs, renderConta, renderMeus, renderPublicar, renderAdmin, renderAjuda, renderDefinicoes, renderApoiar, renderBoasVindas, renderSobre, renderTestesSom } from './ecras.js';
+import { renderFavs, renderConta, renderMeus, renderPublicar, renderAdmin, renderAjuda, renderDefinicoes, renderApoiar, renderBoasVindas, renderSobre } from './ecras.js';
 
 export let hdr;
 
@@ -41,7 +41,7 @@ function nav(){
   const html = TABS.map(([r, t, ic]) => `<a class="tab" href="#${r}" data-r="${r}">${icon(ic)}${t}${r === 'favoritos' ? `<span class="badge fav-badge" ${S.favs.length ? '' : 'hidden'}>${S.favs.length}</span>` : ''}</a>`).join('');
   $('#nav-top').innerHTML = html; $('#nav-bottom').innerHTML = html; marcar();
 }
-function marcar(){ const r = (location.hash.slice(1) || 'feed').split('-')[0]; const base = ['publicar', 'editar'].includes(r) ? 'meus' : ['admin', 'definicoes', 'ajuda', 'apoiar', 'sobre', 'boas-vindas', 'testes-som'].includes(r) ? 'conta' : r;
+function marcar(){ const r = (location.hash.slice(1) || 'feed').split('-')[0]; const base = ['publicar', 'editar'].includes(r) ? 'meus' : ['admin', 'definicoes', 'ajuda', 'apoiar', 'sobre', 'boas-vindas'].includes(r) ? 'conta' : r;
   $$('.tab').forEach(t => t.toggleAttribute('aria-current', t.dataset.r === base)); $$('.tab[aria-current]').forEach(t => t.setAttribute('aria-current', 'page')); }
 export function rotear(r){ if(location.hash.slice(1) === r) render(); else location.hash = r; }
 async function render(){
@@ -62,7 +62,6 @@ async function render(){
   if(r === 'definicoes') return renderDefinicoes(view);
   if(r === 'apoiar') return renderApoiar(view);
   if(r === 'sobre') return renderSobre(view);
-  if(r === 'testes-som') return renderTestesSom(view);
   rotear('feed');
 }
 addEventListener('hashchange', render);
@@ -151,7 +150,8 @@ async function nativos(){
 (async () => {
   aplicarTema();
   $('#btn-def').innerHTML = icon('gear'); $('#btn-def').onclick = () => rotear('definicoes');
-  if(api.ENV.ambiente === 'staging'){ const t = document.createElement('div'); t.className = 'env-tag'; t.textContent = 'Testes'; document.body.appendChild(t); }
+  // etiqueta só nas versões de teste (a compilação de lançamento retira este bloco)
+  if(import.meta.env.VITE_AMBIENTE === 'staging'){ const t = document.createElement('div'); t.className = 'env-tag'; t.textContent = 'Testes'; document.body.appendChild(t); }
   setupRonron(); nav(); rede(); nativos();
   await carregarMe(); badgeFavs();
   const vaiHaverIntro = rrMode() !== 'off' && !reduce() && LS.get('intro-hoje', '') !== new Date().toDateString();

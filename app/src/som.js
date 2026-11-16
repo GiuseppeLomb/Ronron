@@ -21,10 +21,6 @@ export const SONS = { curto: { dur: 600, saida: 220, vol: 1 }, medio: { dur: 165
                       abrir: { dur: 1500, saida: 600, vol: 1 }, repouso: { dur: 6500, saida: 0, vol: .35 } };
 const nivel = () => RR.mode === 'desligado' ? 'nada' : RR.mode === 'calmo' ? 'calmo' : RR.night ? 'noite' : 'ativo';
 
-// registo do lado da app (aparece no ecrã de testes)
-export const registoJS = [];
-export function anotar(t){ registoJS.push(new Date().toLocaleTimeString('pt-PT', { hour12: false }) + '  ' + t); if(registoJS.length > 40) registoJS.shift(); }
-
 // ---------- reações ----------
 // 'curto' ~0,6 s (gosto, tocar no Ronron, sair) · 'medio' ~1,6 s · 'longo' ~3,2 s (Quero conhecer) · 'abrir' ~1,5 s (abrir a app)
 export function ronronar(tipo = 'curto', { atrasoMs = 0, variante, forcarSom = false } = {}){
@@ -37,9 +33,7 @@ export function ronronar(tipo = 'curto', { atrasoMs = 0, variante, forcarSom = f
                  passoMs: 20, intensidade: n === 'calmo' ? .6 : n === 'noite' ? .75 : 1, saidaMs: s.saida };
   const vai = () => {
     if(nativo){
-      (som ? Ronron.tocar(args) : Ronron.vibrar(args))
-        .then(r => anotar(`${tipo}: ${som ? (r?.tocou ? 'som a tocar' : 'som NÃO tocou') : 'só vibração'}${vib ? ' + vibração ' + args.variante : ''}`))
-        .catch(e => anotar(`${tipo}: erro ${e?.message || e}`));
+      (som ? Ronron.tocar(args) : Ronron.vibrar(args)).catch(() => {});
     } else { if(som) web.tocar(args.som, args.volume); if(vib) web.vibrar(s.dur); }
   };
   atrasoMs ? setTimeout(vai, atrasoMs) : vai();
@@ -57,7 +51,7 @@ export function descansar(){
   const n = nivel(); if(!PREF.som || (n !== 'ativo' && n !== 'noite') || emRepouso || repousoFeito || document.hidden) return;
   repousoFeito = true; emRepouso = true;
   const vol = SONS.repouso.vol;
-  if(nativo) Ronron.tocar({ som: 'repouso', volume: vol, loop: true, maxMs: 20000, fadeInMs: 1500 }).then(r => anotar('repouso: ' + (r?.tocou ? 'a tocar' : 'NÃO tocou'))).catch(() => {});
+  if(nativo) Ronron.tocar({ som: 'repouso', volume: vol, loop: true, maxMs: 20000, fadeInMs: 1500 }).catch(() => {});
   else web.repouso('repouso', vol);
   setTimeout(() => { emRepouso = false; }, 22500);
 }
@@ -71,22 +65,20 @@ addEventListener('pointerdown', () => { pararRepouso(); repousoFeito = false; },
 addEventListener('keydown', () => { pararRepouso(); repousoFeito = false; }, { capture: true });
 document.addEventListener('visibilitychange', () => { if(document.hidden) pararTudo(); });
 
-// ---------- browser (pré-visualização no PC; no Android usa-se o plugin nativo) ----------
+// ---------- browser (só para pré-visualizar no PC; no Android usa-se o plugin nativo) ----------
 export const web = (() => {
   let ctx = null, loop = null; const bufs = {}, aCarregar = {};
   const contexto = () => { if(!ctx){ const AC = window.AudioContext || window.webkitAudioContext; if(!AC) return null; ctx = new AC(); } if(ctx.state === 'suspended') ctx.resume().catch(() => {}); return ctx; };
   const preparar = n => aCarregar[n] || (aCarregar[n] = (async () => {
-    try{ const c = contexto(); bufs[n] = await c.decodeAudioData(await (await fetch(`sons/ronron-${n}.${n === 'bip' ? 'ogg' : 'flac'}`)).arrayBuffer()); }catch(e){ anotar(`WebView: não descodificou ${n} (${e?.message || e})`); }
+    try{ const c = contexto(); bufs[n] = await c.decodeAudioData(await (await fetch(`sons/ronron-${n}.flac`)).arrayBuffer()); }catch{}
   })());
   const tocar = (n, v, emLoop = false) => preparar(n).then(() => {
     const c = contexto(), b = bufs[n]; if(!c || !b) return null;
     const src = c.createBufferSource(), g = c.createGain(); src.buffer = b; src.loop = emLoop; src.connect(g).connect(c.destination);
     const t = c.currentTime; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + (emLoop ? 1.5 : .02)); src.start(t);
-    anotar(`WebView: ${n} vol=${v.toFixed(2)} (contexto ${c.state})`);
     return { parar(f = .3){ try{ const t2 = c.currentTime; g.gain.cancelScheduledValues(t2); g.gain.setValueAtTime(g.gain.value, t2); g.gain.linearRampToValueAtTime(0, t2 + f); src.stop(t2 + f + .05); }catch{} } };
   });
   return {
-    estado: () => ({ suportado: !!(window.AudioContext || window.webkitAudioContext), contexto: ctx?.state || 'por criar', sons: Object.keys(bufs).length }),
     tocar: (n, v) => tocar(n, v),
     repouso: (n, v) => tocar(n, v, true).then(h => { loop = h; setTimeout(() => { if(loop === h){ h?.parar(2.5); loop = null; } }, 20000); }),
     parar: () => { loop?.parar(.4); loop = null; },

@@ -52,7 +52,7 @@ async function carregar(){
   makeRonron($('#skel-rr'), { size: 150, pose: 'gente', base: 'gente' });
   $('#side').innerHTML = '';
   try{
-    const lista = await api.feed(S.filtros);
+    const lista = await api.feed(S.filtros); S.total = lista.length;
     LS.set('cache-feed', lista.slice(0, 30));
     if(S.me) (await api.gostos()).forEach(s => S.vistos.add(s.animal_id));
     S.feed = lista.filter(a => !S.vistos.has(a.id)); S.idx = 0; S.trilho = [];
@@ -98,6 +98,11 @@ function vazio(){
     hdr.say('Tira um filtro e procuro outra vez.', 2400);
     $$('.fchip', em).forEach(c => c.onclick = () => { S.filtros[c.dataset.k] = c.dataset.k === 'district' ? '' : false; guardarFiltros(); barra(); carregar(); });
     $('#limpar').onclick = () => { Object.keys(S.filtros).forEach(k => S.filtros[k] = k === 'district' ? '' : false); guardarFiltros(); barra(); carregar(); };
+  } else if(S.total === 0){
+    // ainda não há nenhum gato publicado (início do Ronron)
+    em.innerHTML = `<div class="state-rr"><span id="vz-rr"></span><h3>Os primeiros gatos estão a chegar</h3><span>Ainda não há gatos à espera de casa. Volta em breve. Cuidas de gatos de rua? Publica o primeiro.</span><button class="chip" id="pub1">Publicar um gato</button></div>`;
+    const r = makeRonron($('#vz-rr'), { size: 170, pose: 'gente', base: 'gente' }); r.react('abrir');
+    $('#pub1').onclick = () => location.hash = S.me?.perfil?.role === 'protetor' ? 'publicar' : 'conta';
   } else {
     em.innerHTML = `<div class="state-rr"><span id="vz-rr"></span><h3>Por hoje é tudo</h3><span>Vou dormir uma sesta. Amanhã há mais amigos para conhecer.</span><button class="chip" id="rever">Ver outra vez os que passei</button></div>`;
     const r = makeRonron($('#vz-rr'), { size: 170, pose: 'gente', base: 'dormir' }); r.react('vazio'); setTimeout(() => { if(!$('#empty').hidden) descansar(); }, 1600);
@@ -239,7 +244,7 @@ async function meet(a){
   const msg = encodeURIComponent(`Olá! Vi ${art(a)} ${a.name} no Ronron e gostava de ${a.sex === 'femea' ? 'a' : 'o'} conhecer.`);
   mc.innerHTML = `<span class="rr-wrap"><span class="meet-rr"></span></span>
     <h2 class="disp" id="meet-t">Vão gostar um do outro</h2>
-    <p>${esc(c?.nome || 'Quem cuida')} cuida ${a.sex === 'femea' ? 'da' : 'do'} ${esc(a.name)}. Escreve-lhe e combinem uma visita, sem pressas.</p>
+    <p>${esc(c?.display_name || 'Quem cuida')} cuida ${a.sex === 'femea' ? 'da' : 'do'} ${esc(a.name)}. Escreve-lhe e combinem uma visita, sem pressas.</p>
     ${intl ? `<div class="cta purr" style="width:100%"><a class="primary" href="https://wa.me/${intl}?text=${msg}" target="_blank" rel="noopener">${icon('whatsapp-logo')} Escrever no WhatsApp</a></div>` : ''}
     ${c?.email ? `<a class="btn2" href="mailto:${esc(c.email)}?subject=${encodeURIComponent('Adoção pelo Ronron')}&body=${msg}">${icon('envelope-simple')}${esc(c.email)}</a>` : ''}
     ${!intl && !c?.email ? '<p class="muted">Este protetor ainda não deixou contacto.</p>' : ''}
