@@ -1,0 +1,24 @@
+/* Páginas públicas do Ronron (privacidade e eliminação de conta). Sem fontes nem scripts de terceiros além do necessário. */
+:root{--bg:#F7F1E8;--surface:#FFFDF9;--ink:#23302F;--muted:#5E6B69;--line:#E6DCCD;--accent:#C2643A;--on-accent:#fff;--danger:#B4432E;color-scheme:light}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#141A1D;--surface:#1C2427;--ink:#EDE6DA;--muted:#A9B3B1;--line:#2C373A;--accent:#E08A5C;--on-accent:#141A1D;--danger:#E07A66;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:720px;margin:0 auto;padding:32px 16px 64px}
+header{display:flex;align-items:center;gap:12px;margin-bottom:24px}
+header svg{width:44px;height:44px}
+header b{font-size:22px;letter-spacing:.01em}
+h1{font-family:Georgia,"Times New Roman",serif;font-weight:400;font-size:clamp(30px,6vw,40px);line-height:1.15;margin:0 0 8px}
+h2{font-size:19px;margin:32px 0 8px}
+p,li{color:var(--ink)} .muted{color:var(--muted)} small{color:var(--muted)}
+a{color:var(--accent)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:20px;margin:16px 0;display:grid;gap:12px}
+table{width:100%;border-collapse:collapse;font-size:15px} th,td{text-align:left;vertical-align:top;padding:8px 6px;border-bottom:1px solid var(--line)}
+.btn{display:flex;align-items:center;justify-content:center;gap:10px;min-height:50px;padding:0 20px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:600 16px system-ui,sans-serif;cursor:pointer;width:100%}
+.btn.primary{background:var(--accent);color:var(--on-accent);border-color:transparent}
+.btn.danger{background:var(--danger);color:#fff;border-color:transparent}
+.btn:disabled{opacity:.6;cursor:wait}
+input{width:100%;min-height:48px;padding:10px 14px;border-radius:14px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:16px system-ui,sans-serif}
+label{display:grid;gap:4px;font-weight:600;font-size:15px}
+.err{color:var(--danger);margin:0} .ok{color:#3E7A55;margin:0}
+.ou{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:14px}.ou::before,.ou::after{content:"";flex:1;height:1px;background:var(--line)}
+[hidden]{display:none!important}

@@ -33,12 +33,23 @@ export async function renderFavs(view){
 }
 
 // ---------------- Conta: entrar / criar conta (Turnstile) / perfil ----------------
-let modo = 'entrar', papel = 'adotante', captchaToken = null, captchaId = null;
+let modo = 'entrar', papel = 'adotante', captchaToken = null, captchaId = null, comEmail = false;
+const G_LOGO = '<svg class="g-logo" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>';
 export async function renderConta(view){
-  if(S.me) return perfil(view);
-  const s = pagina(view, `<div class="reveal center" style="display:grid;gap:8px"><span class="st-rr"></span><h1 class="page-title">${modo === 'entrar' ? 'Olá outra vez' : 'Junta-te ao Ronron'}</h1>
-      <p class="lead" style="margin:0">${modo === 'entrar' ? 'Entra para falares com quem cuida dos gatos.' : 'É grátis. O teu contacto só é mostrado quando pedes para conhecer um gato.'}</p></div>
-    <form class="card-s form reveal" id="auth" novalidate>
+  if(S.me) return S.me.perfil && S.me.perfil.perfil_completo === false ? renderBoasVindas(view) : perfil(view);
+  const temGoogle = nativo && api.ENV.google;
+  const mostrarEmail = comEmail || !temGoogle;
+  const s = pagina(view, `<div class="reveal center" style="display:grid;gap:8px"><span class="st-rr"></span><h1 class="page-title">${mostrarEmail && modo === 'registar' ? 'Junta-te ao Ronron' : 'Olá!'}</h1>
+      <p class="lead" style="margin:0">Entra para falares com quem cuida dos gatos. É grátis.</p></div>
+    <div class="card-s form reveal">
+      ${api.ENV.turnstile ? '<div class="ts-box" id="captcha"></div>' : ''}
+      ${temGoogle ? `<button type="button" class="g-btn" id="g-entrar">${G_LOGO}<span>Continuar com o Google</span></button>
+        <p class="small muted" style="margin:0;text-align:center">Na primeira vez pedimos só o essencial: se queres adotar ou se cuidas de gatos, e o teu distrito.</p>` : ''}
+      <p class="err-msg" id="g-err" role="alert" hidden></p>
+      ${temGoogle && !mostrarEmail ? '<button type="button" class="btn2" id="usar-email">Usar email e palavra-passe</button>' : ''}
+    </div>
+    ${mostrarEmail ? `<form class="card-s form reveal" id="auth" novalidate>
+      ${temGoogle ? '<h2 style="margin:0">Com email e palavra-passe</h2>' : ''}
       <div class="seg" role="group" aria-label="Entrar ou criar conta"><button type="button" data-m="entrar" aria-pressed="${modo === 'entrar'}">Entrar</button><button type="button" data-m="registar" aria-pressed="${modo === 'registar'}">Criar conta</button></div>
       ${modo === 'registar' ? `
         <div class="field"><span>Eu…</span><div class="seg"><button type="button" data-p="adotante" aria-pressed="${papel === 'adotante'}">Quero adotar</button><button type="button" data-p="protetor" aria-pressed="${papel === 'protetor'}">Cuido de gatos de rua</button></div></div>
@@ -47,18 +58,71 @@ export async function renderConta(view){
           <label class="field"><span>Cidade</span><input class="inp" name="city" required maxlength="60"></label></div>
         ${papel === 'protetor' ? `<label class="field"><span>WhatsApp</span><input class="inp" name="whatsapp" inputmode="tel" placeholder="912 345 678" maxlength="20"><small>Os adotantes falam contigo diretamente.</small></label>` : ''}` : ''}
       <label class="field"><span>Email</span><input class="inp" name="email" type="email" required autocomplete="email"></label>
-      <label class="field"><span>Palavra-passe</span><input class="inp" name="pass" type="password" required minlength="${modo === 'entrar' ? 6 : 8}" autocomplete="${modo === 'entrar' ? 'current-password' : 'new-password'}">${modo === 'registar' ? '<small>Pelo menos 8 caracteres, com letras e números.</small>' : ''}</label>
-      ${modo === 'registar' ? `<label class="check"><input type="checkbox" name="adulto" required><span>Tenho 18 anos ou mais e aceito as <a href="#ajuda">regras do Ronron</a> e a política de privacidade.</span></label>` : ''}
-      ${api.ENV.turnstile ? '<div class="ts-box" id="captcha"></div>' : ''}
+      <label class="field"><span>Palavra-passe</span><input class="inp" name="pass" type="password" required minlength="${modo === 'entrar' ? 6 : 8}" autocomplete="${modo === 'entrar' ? 'current-password' : 'new-password'}">${modo === 'registar' ? '<small>Pelo menos 8 caracteres, com letras e números. Guarda-a bem: ainda não conseguimos repor palavras-passe.</small>' : ''}</label>
+      ${modo === 'registar' ? `<label class="check"><input type="checkbox" name="adulto" required><span>Tenho 18 anos ou mais e aceito as <a href="#ajuda">regras do Ronron</a> e a ${linkPrivacidade()}.</span></label>` : ''}
       <p class="err-msg" id="auth-err" role="alert" hidden></p>
       <button class="primary">${modo === 'entrar' ? 'Entrar' : 'Criar conta grátis'}</button>
-      ${modo === 'entrar' ? '<p class="small muted" style="margin:0;text-align:center">Esqueceste a palavra-passe? Por agora, pede ajuda ao Ronron pelo email indicado na política de privacidade.</p>' : ''}
-    </form>`);
-  makeRonron($('.st-rr', s), { size: 130, pose: modo === 'entrar' ? 'acenar' : 'feliz', base: 'gente' }).seq([[modo === 'entrar' ? 'acenar' : 'feliz', 1200]], 'gente');
+      ${modo === 'entrar' ? `<p class="small muted" style="margin:0;text-align:center">Esqueceste a palavra-passe? O Ronron ainda não envia emails, por isso não a conseguimos repor.${temGoogle ? ' Podes criar uma conta nova com o Google, que não precisa de palavra-passe.' : ' Podes criar uma conta nova.'}</p>` : ''}
+    </form>` : ''}`);
+  makeRonron($('.st-rr', s), { size: 130, pose: 'acenar', base: 'gente' }).seq([['acenar', 1200]], 'gente');
   $$('[data-m]', s).forEach(b => b.onclick = () => { modo = b.dataset.m; renderConta(view); });
   $$('[data-p]', s).forEach(b => b.onclick = () => { papel = b.dataset.p; renderConta(view); });
-  $('#auth', s).onsubmit = e => { e.preventDefault(); entrar(e.target, view); };
+  $('#usar-email', s)?.addEventListener('click', () => { comEmail = true; renderConta(view); });
+  $('#g-entrar', s)?.addEventListener('click', () => entrarComGoogle($('#g-entrar', s)));
+  $('#auth', s)?.addEventListener('submit', e => { e.preventDefault(); entrar(e.target, view); });
   montarCaptcha();
+}
+const linksPrivacidade = () => `${api.ENV.privacidade ? `<a class="linkrow" href="${api.ENV.privacidade}" target="_blank" rel="noopener">${icon('shield-check')}<span class="grow">Política de privacidade</span>${icon('arrow-square-out', 'i chev')}</a>` : ''}
+  ${api.ENV.apagarConta ? `<a class="linkrow" href="${api.ENV.apagarConta}" target="_blank" rel="noopener">${icon('trash')}<span class="grow">Pedir a eliminação da conta (sem a app)</span>${icon('arrow-square-out', 'i chev')}</a>` : ''}`;
+const linkPrivacidade = () => api.ENV.privacidade ? `<a href="${api.ENV.privacidade}" target="_blank" rel="noopener">política de privacidade</a>` : 'política de privacidade';
+async function entrarComGoogle(b){
+  const err = $('#g-err'); err.hidden = true; const mostrar = t => { err.textContent = t; err.hidden = false; go(err, { x: [0, -6, 6, -3, 0] }, { duration: .35 }); };
+  if(api.ENV.turnstile && !captchaToken) return mostrar('Confirma primeiro a verificação anti-robô, acima.');
+  b.disabled = true; const t = captchaToken; captchaToken = null;
+  try{
+    const r = await api.entrarGoogle(t);
+    if(r?.cancelado) return;
+    await carregarMe(); vibrar();
+    if(S.me?.perfil?.perfil_completo === false) return rotear('boas-vindas');
+    hdr.seq([['feliz', 900]], 'logo'); hdr.say(`Olá, ${S.me?.perfil?.display_name || ''}!`, 2000);
+    rotear(S.me?.perfil?.role === 'protetor' ? 'meus' : 'feed');
+  }catch(e){ mostrar(erroPT(e)); }
+  finally{ b.disabled = false; try{ window.turnstile?.reset(captchaId); }catch{} }
+}
+
+// ---------------- Primeiro login (contas Google): papel, distrito, cidade, WhatsApp, 18+ ----------------
+let bvPapel = 'adotante';
+export function renderBoasVindas(view){
+  if(!S.me) return rotear('conta');
+  if(S.me.perfil?.perfil_completo) return rotear('feed');
+  const p = S.me.perfil || {};
+  const s = pagina(view, `<div class="reveal center" style="display:grid;gap:8px"><span class="st-rr"></span><h1 class="page-title">Boas-vindas ao Ronron</h1>
+      <p class="lead" style="margin:0">Só mais uns segundos. Isto ajuda-nos a mostrar-te gatos perto de ti.</p></div>
+    <form class="card-s form reveal" id="bv" novalidate>
+      <div class="field"><span>Eu…</span><div class="seg"><button type="button" data-p="adotante" aria-pressed="${bvPapel === 'adotante'}">Quero adotar</button><button type="button" data-p="protetor" aria-pressed="${bvPapel === 'protetor'}">Cuido de gatos de rua</button></div></div>
+      <label class="field"><span>Nome</span><input class="inp" name="name" required maxlength="40" autocomplete="given-name" value="${esc(p.display_name && p.display_name !== 'Amigo dos gatos' ? p.display_name : '')}">${bvPapel === 'protetor' ? '<small>Aparece nos teus anúncios.</small>' : ''}</label>
+      <div class="two"><label class="field"><span>Distrito</span><select class="inp" name="district" required><option value="">Escolhe</option>${api.DISTRITOS.map(d => `<option ${d === p.district ? 'selected' : ''}>${d}</option>`).join('')}</select></label>
+        <label class="field"><span>Cidade</span><input class="inp" name="city" required maxlength="60" value="${esc(p.city || '')}"></label></div>
+      ${bvPapel === 'protetor' ? `<label class="field"><span>WhatsApp (opcional)</span><input class="inp" name="whatsapp" inputmode="tel" placeholder="912 345 678" maxlength="20"><small>Só aparece a quem tem conta e pede para conhecer um gato teu. Sem WhatsApp, mostramos o teu email.</small></label>` : ''}
+      <label class="check"><input type="checkbox" name="adulto" required><span>Tenho 18 anos ou mais e aceito as <a href="#ajuda">regras do Ronron</a> e a ${linkPrivacidade()}.</span></label>
+      <p class="err-msg" id="bv-err" role="alert" hidden></p>
+      <button class="primary">Começar</button>
+      <button type="button" class="btn2" id="bv-sair">Agora não, terminar sessão</button>
+    </form>`);
+  makeRonron($('.st-rr', s), { size: 130, pose: 'feliz', base: 'gente' }).seq([['feliz', 1000], ['beijinho', 900]], 'gente');
+  $$('[data-p]', s).forEach(b => b.onclick = () => { const f = $('#bv', s); const keep = { name: f.name.value, district: f.district.value, city: f.city.value };
+    bvPapel = b.dataset.p; S.me.perfil = { ...p, display_name: keep.name || p.display_name, district: keep.district || p.district, city: keep.city || p.city }; renderBoasVindas(view); });
+  $('#bv-sair', s).onclick = async () => { await api.sairGoogle(); await api.sb.auth.signOut(); S.me = null; rotear('feed'); };
+  $('#bv', s).onsubmit = async e => { e.preventDefault(); const f = e.target, err = $('#bv-err');
+    const mostrar = t => { err.textContent = t; err.hidden = false; go(err, { x: [0, -6, 6, -3, 0] }, { duration: .35 }); };
+    if(!f.name.value.trim() || !f.district.value || !f.city.value.trim()) return mostrar('Preenche o nome, o distrito e a cidade.');
+    if(!f.adulto.checked) return mostrar('Para usar o Ronron tens de ter 18 anos ou mais e aceitar as regras.');
+    const b = $('button.primary', f); b.disabled = true;
+    try{ await api.completarPerfil({ role: bvPapel, nome: f.name.value.trim(), distrito: f.district.value, cidade: f.city.value.trim(), whatsapp: f.whatsapp?.value.trim(), adulto: true }); }
+    catch(x){ b.disabled = false; return mostrar(erroPT(x)); }
+    await carregarMe(); confetti(b); hdr.seq([['feliz', 900]], 'logo'); hdr.say(`Olá, ${S.me?.perfil?.display_name || ''}!`, 2000);
+    rotear(bvPapel === 'protetor' ? 'meus' : 'feed');
+  };
 }
 function montarCaptcha(){
   const el = $('#captcha'); if(!el) return; captchaToken = null;
@@ -122,7 +186,7 @@ async function perfil(view){
     if(!r.error) r = await api.sb.from('profile_contacts').upsert({ profile_id: S.me.user.id, whatsapp: tel, email: S.me.user.email });
     if(r.error) return toast(erroPT(r.error), 'warning'); await carregarMe(); rotear('meus');
   });
-  $('#sair', s).onclick = async () => { await api.sb.auth.signOut(); S.me = null; toast('Sessão terminada', 'sign-out'); rotear('feed'); };
+  $('#sair', s).onclick = async () => { await api.sairGoogle(); await api.sb.auth.signOut(); S.me = null; toast('Sessão terminada', 'sign-out'); rotear('feed'); };
 }
 
 // ---------------- Os meus gatos (protetor) ----------------
@@ -282,6 +346,7 @@ export function renderAjuda(view){
       <p style="margin:0">É o vírus da leucemia felina. <b>Só passa entre gatos</b> (não passa para pessoas nem cães), sobretudo pela saliva, lambidelas e lutas.</p>
       <p style="margin:0">Um gato FeLV positivo pode viver vários anos feliz. Precisa de viver dentro de casa, ser o único gato ou viver só com outros FeLV positivos, e ir ao veterinário com mais regularidade.</p>
       <p style="margin:0" class="muted">Estes gatos são os que mais esperam por casa. Se puderes, dá-lhes uma oportunidade.</p></div>
+    <div class="card-s reveal"><h2>Privacidade</h2>${linksPrivacidade()}</div>
     <p class="small muted reveal" style="text-align:center;margin:0">O Ronron só põe pessoas em contacto. A responsabilidade da adoção é de quem adota e de quem dá.</p>`);
   makeRonron($('.st-rr', s), { size: 96, pose: 'ler', base: 'ler' }).react('ficha');
 }
@@ -295,12 +360,13 @@ export function renderDefinicoes(view){
     ${nativo ? `<div class="card-s reveal"><h2>Notificações</h2><p class="small muted" style="margin:0">Avisamos-te quando um gato teu for aprovado.</p><div class="row-btns"><button class="btn2" id="notif">${icon('bell')}Permitir notificações</button></div></div>` : ''}
     ${S.me ? `<div class="card-s reveal"><h2>Conta</h2><button class="linkrow" id="sair2">${icon('sign-out')}<span class="grow" style="text-align:left">Terminar sessão</span></button>
       <button class="linkrow" id="apagar-conta" style="color:#B4432E">${icon('trash')}<span class="grow" style="text-align:left">Apagar a minha conta</span></button></div>` : ''}
+    <div class="card-s reveal"><h2>Privacidade</h2>${linksPrivacidade()}</div>
     <div class="card-s reveal"><h2>Sobre</h2><p class="small muted" style="margin:0">Ronron ${__VERSAO__} · ${api.ENV.ambiente === 'staging' ? 'ambiente de testes' : 'produção'}</p></div>`);
   const rr = makeRonron($('.st-rr', s), { size: 72, pose: 'gente', base: 'gente' });
   $$('#tema button', s).forEach(b => b.onclick = () => { S.tema = b.dataset.v; LS.set('tema', S.tema); aplicarTema(); $$('#tema button', s).forEach(x => x.setAttribute('aria-pressed', x === b)); });
   $$('#modo button', s).forEach(b => b.onclick = () => { definirModo(b.dataset.v); $$('#modo button', s).forEach(x => x.setAttribute('aria-pressed', x === b)); rr.react(b.dataset.v === 'ativo' ? 'brincar' : 'bocejar'); });
   $('#notif', s)?.addEventListener('click', async () => { const { LocalNotifications } = await import('@capacitor/local-notifications'); const p = await LocalNotifications.requestPermissions(); toast(p.display === 'granted' ? 'Notificações ligadas' : 'Notificações desligadas', 'bell'); });
-  $('#sair2', s)?.addEventListener('click', async () => { await api.sb.auth.signOut(); S.me = null; rotear('feed'); });
+  $('#sair2', s)?.addEventListener('click', async () => { await api.sairGoogle(); await api.sb.auth.signOut(); S.me = null; rotear('feed'); });
   $('#apagar-conta', s)?.addEventListener('click', async () => {
     const v = await dialogo({ titulo: 'Apagar a tua conta?', texto: 'Apagamos o teu perfil, os teus gatos, fotografias, favoritos e contactos. Não dá para desfazer. Escreve APAGAR para confirmar.', campo: { max: 10, obrigatorio: true, placeholder: 'APAGAR' }, ok: 'Apagar tudo', perigo: true });
     if(v === null) return; if(v.toUpperCase() !== 'APAGAR') return toast('Não apagámos nada.', 'info');

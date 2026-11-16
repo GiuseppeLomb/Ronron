@@ -7,6 +7,9 @@ export const ENV = {
   turnstile: import.meta.env.VITE_TURNSTILE || '',
   ambiente: import.meta.env.VITE_AMBIENTE || 'staging',
   doacoes: import.meta.env.VITE_DOACOES === 'true',   // apoio a uma associação: desligado por omissão
+  google: import.meta.env.VITE_GOOGLE_WEB_CLIENT || '',  // cliente Web do Google (público): audiência do token
+  privacidade: import.meta.env.VITE_URL_PRIVACIDADE || '',
+  apagarConta: import.meta.env.VITE_URL_APAGAR || '',
 };
 export const sb = createClient(ENV.url, ENV.key, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storageKey: 'ronron.sessao' },
@@ -84,5 +87,32 @@ export async function apagarConta(uid){
     if(fs?.length) await sb.storage.from('animal-photos').remove(fs.map(f => `${uid}/${a.id}/${f.name}`));
   }
   const { error } = await sb.rpc('apagar_conta'); if(error) throw error;
+  await sairGoogle();
   await sb.auth.signOut({ scope: 'local' });
+}
+
+// ---------- Login com Google (nativo no Android, Credential Manager) ----------
+// O Google assina um token com o nonce em SHA-256; o Supabase recebe o nonce original e confirma que o token é novo e para o Ronron.
+let googlePronto = null;
+async function google(){
+  const { SocialLogin } = await import('@capgo/capacitor-social-login');
+  if(!googlePronto) googlePronto = SocialLogin.initialize({ google: { webClientId: ENV.google, mode: 'online' } });
+  await googlePronto; return SocialLogin;
+}
+const sha256 = async t => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)))].map(b => b.toString(16).padStart(2, '0')).join('');
+export async function entrarGoogle(captchaToken){
+  const SocialLogin = await google();
+  const nonce = [...crypto.getRandomValues(new Uint8Array(24))].map(b => b.toString(16).padStart(2, '0')).join('');
+  let res;
+  try{ res = await SocialLogin.login({ provider: 'google', options: { scopes: ['email', 'profile'], nonce: await sha256(nonce) } }); }
+  catch(e){ const m = String(e?.message || e); if(/cancel/i.test(m)) return { cancelado: true }; throw new Error('google_falhou: ' + m); }
+  const token = res?.result?.idToken; if(!token) throw new Error('google_falhou: sem token');
+  const { data, error } = await sb.auth.signInWithIdToken({ provider: 'google', token, nonce, options: captchaToken ? { captchaToken } : {} });
+  if(error){ try{ await SocialLogin.logout({ provider: 'google' }); }catch{} throw error; }
+  return data;
+}
+export async function sairGoogle(){ try{ if(ENV.google) await (await google()).logout({ provider: 'google' }); }catch{} }
+export async function completarPerfil(v){
+  const { error } = await sb.rpc('completar_perfil', { p_role: v.role, p_nome: v.nome, p_distrito: v.distrito, p_cidade: v.cidade, p_whatsapp: v.whatsapp || null, p_adulto_e_regras: v.adulto });
+  if(error) throw error;
 }

@@ -7,7 +7,7 @@ import { makeRonron, RR, rrMode } from './ronron.js';
 import * as api from './api.js';
 import { S, LS } from './state.js';
 import { renderFeed, fecharFicha, fecharMeet, badgeFavs } from './feed.js';
-import { renderFavs, renderConta, renderMeus, renderPublicar, renderAdmin, renderAjuda, renderDefinicoes, renderApoiar } from './ecras.js';
+import { renderFavs, renderConta, renderMeus, renderPublicar, renderAdmin, renderAjuda, renderDefinicoes, renderApoiar, renderBoasVindas } from './ecras.js';
 
 export let hdr;
 
@@ -47,6 +47,9 @@ async function render(){
   const r = location.hash.slice(1) || 'feed', view = $('#view');
   $('#sheet').hidden = true; $('#meet').hidden = true; $('#celebra').hidden = true; marcar();
   go(view, { opacity: [0, 1] }, { duration: .25 });
+  // primeiro login por concluir (contas Google): só deixa ver as regras e as definições
+  if(S.me?.perfil?.perfil_completo === false && !['boas-vindas', 'ajuda', 'definicoes'].includes(r)) return rotear('boas-vindas');
+  if(r === 'boas-vindas') return renderBoasVindas(view);
   if(r === 'feed') return renderFeed(view);
   if(r === 'favoritos') return renderFavs(view);
   if(r === 'conta') return renderConta(view);

@@ -26,6 +26,9 @@ export async function vibrar(forte = false){
 }
 
 const ERROS = [
+  [/ronron_conta_existente|database error (saving|granting|creating|updating|linking)|identity.*already|already linked/i, 'Este email já tem uma conta no Ronron criada com palavra-passe. Entra com o email e a palavra-passe.'],
+  [/google_falhou/i, 'O Google não conseguiu iniciar sessão neste telemóvel. Tenta outra vez ou entra com email.'],
+  [/nonce/i, 'O início de sessão com o Google expirou. Tenta outra vez.'],
   [/load failed|failed to fetch|networkerror|network request failed|fetch|timeout|timed out|52\d|54\d|503|502/i, 'Não consegui ligar ao servidor. Verifica a ligação e tenta daqui a uns minutos.'],
   [/invalid login credentials/i, 'Email ou palavra-passe errados.'],
   [/user already registered|already been registered/i, 'Já existe uma conta com este email. Usa "Entrar".'],
