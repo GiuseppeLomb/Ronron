@@ -96,7 +96,7 @@ export async function apagarConta(uid){
 let googlePronto = null;
 async function google(){
   const { SocialLogin } = await import('@capgo/capacitor-social-login');
-  if(!googlePronto) googlePronto = SocialLogin.initialize({ google: { webClientId: ENV.google, mode: 'online' } });
+  if(!googlePronto) googlePronto = SocialLogin.initialize({ google: { webClientId: ENV.google, mode: 'online', skipAuthOnlyAuthorizationAfterSignIn: true } });
   await googlePronto; return SocialLogin;
 }
 const sha256 = async t => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)))].map(b => b.toString(16).padStart(2, '0')).join('');
@@ -104,7 +104,7 @@ export async function entrarGoogle(captchaToken){
   const SocialLogin = await google();
   const nonce = [...crypto.getRandomValues(new Uint8Array(24))].map(b => b.toString(16).padStart(2, '0')).join('');
   let res;
-  try{ res = await SocialLogin.login({ provider: 'google', options: { scopes: ['email', 'profile'], nonce: await sha256(nonce) } }); }
+  try{ res = await SocialLogin.login({ provider: 'google', options: { nonce: await sha256(nonce) } }); }
   catch(e){ const m = String(e?.message || e); if(/cancel/i.test(m)) return { cancelado: true }; throw new Error('google_falhou: ' + m); }
   const token = res?.result?.idToken; if(!token) throw new Error('google_falhou: sem token');
   const { data, error } = await sb.auth.signInWithIdToken({ provider: 'google', token, nonce, options: captchaToken ? { captchaToken } : {} });

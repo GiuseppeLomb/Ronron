@@ -86,7 +86,7 @@ async function entrarComGoogle(b){
     if(S.me?.perfil?.perfil_completo === false) return rotear('boas-vindas');
     hdr.seq([['feliz', 900]], 'logo'); hdr.say(`Olá, ${S.me?.perfil?.display_name || ''}!`, 2000);
     rotear(S.me?.perfil?.role === 'protetor' ? 'meus' : 'feed');
-  }catch(e){ mostrar(erroPT(e)); }
+  }catch(e){ mostrar(erroPT(e) + (api.ENV.ambiente === 'staging' ? ` [detalhe para testes: ${String(e?.message || e).slice(0, 160)}]` : '')); }
   finally{ b.disabled = false; try{ window.turnstile?.reset(captchaId); }catch{} }
 }
 

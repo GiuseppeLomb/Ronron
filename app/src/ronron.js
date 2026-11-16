@@ -78,9 +78,10 @@ const GENTE = {
   legStripeL:'M64 240 C 66 246 66 252 64 258 M48 248 C 50 254 50 260 48 266',
   footL:'M6 262 C 2 246 20 238 32 246 C 41 254 39 274 26 278 C 15 281 8 273 6 262 Z',
   padsL:'M14 266 C 14 259 28 259 28 266 C 28 272 14 272 14 266 Z M10 254 C 10 250 15 250 15 254 C 15 257 10 257 10 254 Z M17 249 C 17 245 22 245 22 249 C 22 252 17 252 17 249 Z M25 251 C 25 247 30 247 30 251 C 30 254 25 254 25 251 Z',
-  tail:'M112 250 C 108 264 110 278 116 288 C 120 294 134 292 132 284 C 130 274 128 262 128 250 Z',
-  tailRings:'M112 266 C 117 268 123 268 129 266 M113 277 C 118 279 124 279 130 277',
-  tailTip:'M115 284 C 116 278 132 278 132 284 C 133 292 116 293 115 284 Z',
+  // cauda atrás do corpo, a subir pelo lado direito com a ponta enrolada (nunca entre as pernas)
+  tail:'M176 248 C 194 246 206 236 210 220 C 214 206 212 192 204 186 C 198 181 190 184 193 192 C 197 202 197 212 193 222 C 189 232 182 236 172 236 Z',
+  tailRings:'M195 210 C 200 212 206 212 211 209 M193 225 C 198 228 203 228 208 225',
+  tailTip:'M204 186 C 198 181 190 184 193 192 C 194 196 197 199 202 199 C 207 198 211 196 211 193 C 210 190 207 188 204 186 Z',
   armL:'M88 180 C 82 198 86 218 98 232 C 102 236 106 238 110 236 C 104 222 100 204 100 186 C 98 176 90 174 88 180 Z',
   handL:'M97 232 C 98 222 114 223 117 231 C 120 243 113 252 105 250 C 99 248 96 240 97 232 Z',
   fingersL:'M103 246 C 103 248 104 250 105 251 M109 245 C 109 248 110 250 111 251',
@@ -150,8 +151,8 @@ const RR3_SVG = `<svg class="rr-svg" viewBox="0 0 240 292" aria-hidden="true"><g
  </g>
  <g data-part="body" data-val="gente">
   ${BM(GENTE.legL,'f fur')}${BM(GENTE.legStripeL,'stripe dt')}${BM(GENTE.footL,'f cream')}${BM(GENTE.padsL,'pads dt')}
+  <g class="tail" style="transform-origin:180px 240px">${B(GENTE.tail,'f fur')}${B(GENTE.tailRings,'stripe')}${B(GENTE.tailTip,'f cream')}</g>
   <g class="breath">${B(GENTE.body,'f fur')}${BM(GENTE.bodyShadeL,'shade dt')}${B(GENTE.belly,'cream')}${BM(GENTE.sideStripesL,'stripe dt')}${B(GENTE.ruff,'cream')}</g>
-  <g class="tail" style="transform-origin:120px 252px">${B(GENTE.tail,'f fur')}${B(GENTE.tailRings,'stripe')}${B(GENTE.tailTip,'f cream')}</g>
   <g data-part="gentearms" data-val="on">${B(GENTE.armL,'f fur')}${B(GENTE.handL,'f cream')}${B(GENTE.fingersL,'ln thin dt')}
    <g class="scratch" style="transform-origin:146px 182px">${B(mirX(GENTE.armL,240),'f fur')}${B(mirX(GENTE.handL,240),'f cream')}${B(mirX(GENTE.fingersL,240),'ln thin dt')}</g></g>
  </g>
