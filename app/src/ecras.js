@@ -365,6 +365,7 @@ export function renderDefinicoes(view){
       </div>
       <p class="small muted" style="margin:0">No modo Calmo o som é o mesmo, a metade do volume, e a vibração é mais leve. Desligado: nem som nem vibração. Das 22h às 7h a vibração fica mais suave.</p></div>
     ${nativo ? `<div class="card-s reveal"><h2>Notificações</h2><p class="small muted" style="margin:0">Avisamos-te quando um gato teu for aprovado.</p><div class="row-btns"><button class="btn2" id="notif">${icon('bell')}Permitir notificações</button></div></div>` : ''}
+    ${S.me && nativo && api.ENV.google ? `<div class="card-s reveal" id="g-card"><h2>Conta Google</h2><p class="small muted" id="g-estado" style="margin:0">A verificar…</p></div>` : ''}
     ${S.me ? `<div class="card-s reveal"><h2>Conta</h2><button class="linkrow" id="sair2">${icon('sign-out')}<span class="grow" style="text-align:left">Terminar sessão</span></button>
       <button class="linkrow" id="apagar-conta" style="color:#B4432E">${icon('trash')}<span class="grow" style="text-align:left">Apagar a minha conta</span></button></div>` : ''}
     <div class="card-s reveal"><h2>Privacidade</h2>${linksPrivacidade()}</div>
@@ -375,6 +376,7 @@ export function renderDefinicoes(view){
   $$('[data-sw]', s).forEach(b => b.onclick = () => { const k = b.dataset.sw, v = b.getAttribute('aria-checked') !== 'true';
     definir(k, v); b.setAttribute('aria-checked', v); if(v){ rr.react('ronronar'); ronronar('curto'); } });
   $('#notif', s)?.addEventListener('click', async () => { const { LocalNotifications } = await import('@capacitor/local-notifications'); const p = await LocalNotifications.requestPermissions(); toast(p.display === 'granted' ? 'Notificações ligadas' : 'Notificações desligadas', 'bell'); });
+  if($('#g-card', s)) cartaoGoogle($('#g-card', s), view);
   $('#sair2', s)?.addEventListener('click', async () => { await api.sairGoogle(); await api.sb.auth.signOut(); S.me = null; rotear('feed'); });
   $('#apagar-conta', s)?.addEventListener('click', async () => {
     const v = await dialogo({ titulo: 'Apagar a tua conta?', texto: 'Apagamos o teu perfil, os teus gatos, fotografias, favoritos e contactos. Não dá para desfazer. Escreve APAGAR para confirmar.', campo: { max: 10, obrigatorio: true, placeholder: 'APAGAR' }, ok: 'Apagar tudo', perigo: true });
@@ -382,6 +384,25 @@ export function renderDefinicoes(view){
     try{ await api.apagarConta(S.me.user.id); S.me = null; LS.set('favs', []); S.favs = []; hdr.seq([['triste', 1600]], 'logo'); toast('Conta apagada. Obrigado por teres passado por cá.', 'check'); rotear('feed'); }
     catch(e){ toast(erroPT(e), 'warning'); }
   });
+}
+
+// Cartão "Conta Google" nas Definições: mostra a ligação ou deixa ligar (só com sessão iniciada)
+async function cartaoGoogle(gc, view){
+  let id; try{ id = await api.contaGoogle(); }catch{ $('#g-estado', gc).textContent = 'Não consegui verificar agora. Tenta daqui a pouco.'; return; }
+  if(id){ $('#g-estado', gc).innerHTML = `Ligada a <b>${esc(id.identity_data?.email || 'a tua conta Google')}</b>. Podes entrar com o Google ou com email e palavra-passe.`; return; }
+  gc.innerHTML = `<h2>Conta Google</h2><p class="small muted" style="margin:0">Liga a tua conta Google para entrares sem palavra-passe. Só tu, com a sessão iniciada, podes fazer esta ligação.</p>
+    ${api.ENV.turnstile ? '<div class="ts-box" id="captcha"></div>' : ''}
+    <button type="button" class="g-btn" id="g-ligar">${G_LOGO}<span>Ligar conta Google</span></button><p class="err-msg" id="g-lerr" role="alert" hidden></p>`;
+  montarCaptcha();
+  const b = $('#g-ligar', gc), err = $('#g-lerr', gc);
+  b.onclick = async () => {
+    err.hidden = true;
+    if(api.ENV.turnstile && !captchaToken){ err.textContent = 'Confirma primeiro a verificação anti-robô, acima.'; err.hidden = false; return; }
+    b.disabled = true; const t = captchaToken; captchaToken = null;
+    try{ const r = await api.ligarGoogle(t); if(r?.cancelado) return; toast('Conta Google ligada', 'check'); ronronar('curto'); renderDefinicoes(view); }
+    catch(e){ err.textContent = erroPT(e); err.hidden = false; }
+    finally{ b.disabled = false; try{ window.turnstile?.reset(captchaId); }catch{} }
+  };
 }
 
 // ---------------- Sobre ----------------
