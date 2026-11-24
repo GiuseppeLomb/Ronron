@@ -108,8 +108,36 @@ export async function entrarGoogle(captchaToken){
   catch(e){ const m = String(e?.message || e); if(/cancel/i.test(m)) return { cancelado: true }; throw new Error('google_falhou: ' + m); }
   const token = res?.result?.idToken; if(!token) throw new Error('google_falhou: sem token');
   const { data, error } = await sb.auth.signInWithIdToken({ provider: 'google', token, nonce, options: captchaToken ? { captchaToken } : {} });
-  if(error){ try{ await SocialLogin.logout({ provider: 'google' }); }catch{} throw error; }
+  if(error){
+    try{ await SocialLogin.logout({ provider: 'google' }); }catch{}
+    // 500 neste pedido = a base de dados recusou juntar o Google a uma conta já criada com email e palavra-passe
+    if(error.status === 500 || error.code === 'unexpected_failure' || /ronron_conta_existente|database error|error creating identity/i.test(error.message || '')) throw new Error('ronron_conta_existente');
+    throw error;
+  }
   return data;
+}
+// "sub" do Google (identificador da conta) lido do próprio token; o servidor volta a verificar o token ao ligar
+const subDoToken = t => { try{ const p = t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'); return String(JSON.parse(atob(p + '='.repeat((4 - p.length % 4) % 4))).sub || ''); }catch{ return ''; } };
+// Ligar o Google à conta com sessão iniciada (Definições). Seguro contra nOAuth: só com sessão, só para esta conta Google,
+// autorização válida 5 minutos e usada uma vez (ver supabase/migrations/20261124010000_ligar_google.sql).
+export async function ligarGoogle(captchaToken){
+  const SocialLogin = await google();
+  const nonce = [...crypto.getRandomValues(new Uint8Array(24))].map(b => b.toString(16).padStart(2, '0')).join('');
+  let res;
+  try{ res = await SocialLogin.login({ provider: 'google', options: { nonce: await sha256(nonce) } }); }
+  catch(e){ const m = String(e?.message || e); if(/cancel/i.test(m)) return { cancelado: true }; throw new Error('google_falhou: ' + m); }
+  const token = res?.result?.idToken; const sub = token ? subDoToken(token) : '';
+  try{
+    if(!sub) throw new Error('google_falhou: sem token');
+    const { error: e1 } = await sb.rpc('preparar_ligacao_google', { p_sub: sub }); if(e1) throw e1;
+    const { error } = await sb.auth.linkIdentity({ provider: 'google', token, nonce, options: captchaToken ? { captchaToken } : {} });
+    if(error) throw error;
+  } finally { try{ await SocialLogin.logout({ provider: 'google' }); }catch{} }
+  return { ligado: true };
+}
+export async function contaGoogle(){
+  const { data, error } = await sb.auth.getUserIdentities(); if(error) throw error;
+  return data?.identities?.find(i => i.provider === 'google') || null;
 }
 export async function sairGoogle(){ try{ if(ENV.google) await (await google()).logout({ provider: 'google' }); }catch{} }
 export async function completarPerfil(v){

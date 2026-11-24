@@ -57,7 +57,7 @@ const pt = e => { const m = String(e?.message || e || '');
   if(/invalid login credentials/i.test(m)) return 'Email ou palavra-passe errados.';
   if(/captcha/i.test(m)) return 'A verificação anti-robô falhou. Tenta outra vez.';
   if(/fetch|network|load failed/i.test(m)) return 'Não consegui ligar ao servidor. Verifica a ligação.';
-  if(/ronron_conta_existente|database error/i.test(m)) return 'Este email tem conta criada com palavra-passe. Entra com o email e a palavra-passe.';
+  if(/ronron_conta_existente|database error|error creating identity|unexpected/i.test(m)) return 'Já tens conta com este email. Entra com email e palavra-passe.';
   return 'Algo correu mal. Tenta outra vez daqui a pouco.'; };
 async function mostrar(){
   const { data: { session } } = await sb.auth.getSession();

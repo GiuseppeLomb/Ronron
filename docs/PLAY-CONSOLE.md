@@ -1,6 +1,6 @@
 # Ronron 1.0.0 — pacote para a Play Console
 
-Tudo o que é preciso para publicar, pronto a copiar. Pacote `pt.ronron.app`, versão 1.0.0 (versionCode 1000000).
+Tudo o que é preciso para publicar, pronto a copiar. Pacote `pt.ronron.app`, versão 1.0.1 (versionCode 1000100). A 1.0.0 (1000000) foi a primeira compilação.
 As credenciais da conta de demonstração **não** estão aqui (este repositório pode ser lido por outras pessoas): estão no ficheiro `ronron-conta-revisor-google.txt` que te foi entregue à parte.
 
 ---
@@ -11,9 +11,10 @@ As credenciais da conta de demonstração **não** estão aqui (este repositóri
 2. **Ecrã de consentimento do Google (Google Cloud → Google Auth Platform → Audience):** passar de "Testing" para **"In production"**. Enquanto estiver em teste, só as contas da lista "Test users" conseguem entrar com o Google. Com os âmbitos `openid`, `email` e `profile` não é preciso verificação da Google.
 3. **Play App Signing:** ao criar a app e enviar o primeiro `.aab`, aceita a assinatura da app pela Google Play. Depois, em **Play Console → Teste e lançamento → Integridade da app → Assinatura da app**, copia a **SHA-1 da chave de assinatura da app** e cria **mais um cliente OAuth Android** no Google Cloud (pacote `pt.ronron.app` + essa SHA-1). Sem isto, o login com Google falha nas instalações feitas pela Play Store (a Google reassina a app com outra chave).
    - SHA-1 da chave de carregamento (upload key), já registada: `63:D4:AA:0E:24:68:37:BC:EE:29:3D:73:2A:9C:D1:D3:A7:A5:60:A6`
-4. **Supabase de produção → Authentication → URL Configuration → Redirect URLs:** acrescentar `https://giuseppelomb.github.io/Ronron/apagar-conta/` (para o login com Google na página de eliminação de conta).
-5. **Gatos reais antes da revisão:** a base de dados de produção está vazia (sem dados fictícios, como pedido). Antes de enviar para revisão, publica e aprova alguns gatos reais (de quem cuida de gatos de rua), para o revisor da Google não ver uma app vazia. Sem gatos, a app mostra "Os primeiros gatos estão a chegar".
-6. **Conta pessoal da Play Console:** contas pessoais criadas depois de novembro de 2023 têm de fazer um **teste fechado com pelo menos 12 testadores durante 14 dias seguidos** antes de poderem pedir acesso à produção (ver secção 6).
+4. **Supabase (produção e Staging) → Authentication → Sign In / Providers → "Allow manual linking": ligar.** É o que permite, nas Definições da app, "Ligar conta Google" a uma conta criada com email e palavra-passe. A junção automática pelo email continua bloqueada pela base de dados (proteção contra nOAuth).
+5. **Supabase de produção → Authentication → URL Configuration → Redirect URLs:** acrescentar `https://giuseppelomb.github.io/Ronron/apagar-conta/` (para o login com Google na página de eliminação de conta).
+6. **Gatos reais antes da revisão:** a base de dados de produção está vazia (sem dados fictícios, como pedido). Antes de enviar para revisão, publica e aprova alguns gatos reais (de quem cuida de gatos de rua), para o revisor da Google não ver uma app vazia. Sem gatos, a app mostra "Os primeiros gatos estão a chegar".
+7. **Conta pessoal da Play Console:** contas pessoais criadas depois de novembro de 2023 têm de fazer um **teste fechado com pelo menos 12 testadores durante 14 dias seguidos** antes de poderem pedir acesso à produção (ver secção 6).
 
 ---
 
@@ -139,7 +140,14 @@ Internet e estado da rede · vibração · notificações (aviso "o teu gato foi
 
 ---
 
-## 3. Notas da versão 1.0.0 (máx. 500)
+## 3. Notas da versão (máx. 500)
+
+**1.0.1** (é esta a primeira a enviar):
+```
+Primeira versão do Ronron. Conhece gatos de rua à procura de casa em Portugal, guarda os teus favoritos e fala diretamente com quem cuida deles. Quem cuida de gatos pode publicá-los com fotos. Entra com o Google ou com email, e liga o Google à tua conta nas Definições. Adoção sempre gratuita.
+```
+
+1.0.0 (referência)
 
 ```
 Primeira versão do Ronron. Conhece gatos de rua à procura de casa em Portugal, guarda os teus favoritos e fala diretamente com quem cuida deles. Quem cuida de gatos pode publicá-los com fotos. Entrar com o Google ou com email. Adoção sempre gratuita.
@@ -150,7 +158,7 @@ Primeira versão do Ronron. Conhece gatos de rua à procura de casa em Portugal,
 
 ## 4. Ficheiros da versão
 
-- **`.aab` para a Google Play:** GitHub → Actions → "App Android" → a execução de lançamento → secção *Artifacts* → `ronron-play-store-aab` (guardado 90 dias). Dentro: `ronron-1.0.0-1000000.aab`, assinado com a chave de carregamento.
+- **`.aab` para a Google Play:** GitHub → Actions → "App Android" → a execução de lançamento → secção *Artifacts* → `ronron-play-store-aab` (guardado 90 dias). Dentro: `ronron-<versão>-<versionCode>.aab`, assinado com a chave de carregamento.
 - **APK de lançamento (só para verificar no telemóvel):** mesma página, `ronron-apk-lancamento`. Usa a base de dados de **produção**. Para o instalar por cima das versões de teste, desinstala primeiro a versão de teste.
 - Para uma nova compilação de lançamento: Actions → App Android → Run workflow → `ambiente` = `production` (e `revisao` = 1, 2… se for preciso reenviar a mesma versão).
 
@@ -160,7 +168,7 @@ Primeira versão do Ronron. Conhece gatos de rua à procura de casa em Portugal,
 
 1. Play Console → **Criar app**: nome "Ronron: adoção de gatos", idioma predefinido Português (Portugal), **App**, **Gratuita**, aceitar as declarações.
 2. Preencher a secção 2 (Conteúdo da app) e a secção 1 (Ficha da loja).
-3. **Teste e lançamento → Testes → Teste fechado** → criar faixa → enviar `ronron-1.0.0-1000000.aab` → notas da secção 3 → países: Portugal.
+3. **Teste e lançamento → Testes → Teste fechado** → criar faixa → enviar o `.aab` mais recente (1.0.1: `ronron-1.0.1-1000100.aab`) → notas da secção 3 → países: Portugal.
 4. Aceitar a **assinatura da app pela Google Play** e fazer o passo 0.3 (SHA-1 da chave de assinatura no Google Cloud).
 5. Adicionar os testadores (lista de emails ou Grupo Google) e partilhar o link de adesão.
 
